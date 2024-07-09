@@ -42,7 +42,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // // --------------------------------------------------------------------------------------------------------------------
 var fs = require("fs");
 var sql = require("mssql");
-var dbConfig_1 = require("./dbConfig");
+var dbConfig_1 = require("./config/dbConfig");
 function createCommentsFromJSON() {
     return __awaiter(this, void 0, void 0, function () {
         var data, comments, pool, _i, comments_1, commentGroup, _a, commentGroup_1, comment, queryResult, issueQuery, issueResult, issueId, userQuery, userResult, userId, text, convertedDateTime, insertQuery, error_1, error_2;

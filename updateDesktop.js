@@ -42,7 +42,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // // --------------------------------------------------------------------------------------------------------------------
 var fs = require("fs");
 var sql = require("mssql");
-var dbConfig_1 = require("./dbConfig");
+var dbConfig_1 = require("./config/dbConfig");
 function createDesktopsFromJSON() {
     return __awaiter(this, void 0, void 0, function () {
         var data, desktops, pool, _i, desktops_1, desktop, queryResult, request, error_1;

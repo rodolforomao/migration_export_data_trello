@@ -42,7 +42,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // // --------------------------------------------------------------------------------------------------------------------
 var fs = require("fs");
 var sql = require("mssql");
-var dbConfig_1 = require("./dbConfig");
+var dbConfig_1 = require("./config/dbConfig");
 function createListsFromJson() {
     return __awaiter(this, void 0, void 0, function () {
         var data, lists, pool, order, _i, lists_1, list, queryResult, projectQuery, projectResult, projectId, insertQuery, error_1, error_2;

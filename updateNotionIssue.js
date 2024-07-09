@@ -38,7 +38,7 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var fs = require("fs");
 var sql = require("mssql");
-var dbConfig_1 = require("./dbConfig");
+var dbConfig_1 = require("./config/dbConfig");
 function getListIdByDate(pool, date) {
     return __awaiter(this, void 0, void 0, function () {
         var monthYear, month, year, listName, query, result, error_1;
