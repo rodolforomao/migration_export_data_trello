@@ -3,9 +3,10 @@ const fs = require('fs');
 const path = require('path');
 const { main } = require('./migrateSimaTrello.js'); 
 
+import config from './config/dbConfig.js'
 
-const API_KEY = '1151021f37fbee27ad159ce4df025cc8';
-const API_TOKEN = 'ATTAe39700bb9bb65854c5cbbb6474e08212348acce8670b0433424079cbcab23cd9D5BC6AC4';
+const API_KEY = config.API_KEY;
+const API_TOKEN = config.API_TOKEN;
 
 async function fetchAndSaveOrganizationData() {
     try {
