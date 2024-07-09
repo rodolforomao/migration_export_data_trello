@@ -1,7 +1,7 @@
 const fs = require('fs');
 const sql = require('mssql');
 const path = require('path');
-const { process } = require('process');
+require('dotenv').config(); 
 
 // Configurações de conexão com o banco de dados SQL Server
 const config = {
