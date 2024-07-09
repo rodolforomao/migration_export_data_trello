@@ -1,11 +1,9 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { main } = require('./migrateSimaTrello.js'); 
-const { process } = require('process');
+const { main } = require('./migrateSimaTrello.js');
 //import config from './config/dbConfig.js'
-
-require('dotenv').config(); 
+require('dotenv').config();
 
 async function fetchAndSaveOrganizationData() {
     try {
@@ -18,15 +16,15 @@ async function fetchAndSaveOrganizationData() {
                 'Cookie': process.env.COOKIE
             }
         });
-        const organizations = organizationsResponse.data;
-        const foundOrganizations = [];
+        const organization = organizationsResponse.data;
+        const organizations = [];
 
-        organizations.forEach(org => {
+        organization.forEach(org => {
             if (org.displayName === 'CGPERT') { // Substitua 'CGCONT' pelo displayName que você está procurando
-                foundOrganizations.push(org);
+                organizations.push(org);
             }
         });
-        
+
         const rootFolderPath = './trelloRestore';
         if (!fs.existsSync(rootFolderPath)) {
             fs.mkdirSync(rootFolderPath);
@@ -58,11 +56,11 @@ async function fetchAndSaveOrganizationData() {
 async function fetchAndSaveSubFolders(orgId, orgPath) {
     const boardsResponse = await axios.get(`https://api.trello.com/1/organizations/${orgId}/boards`, {
         params: {
-            key: API_KEY,
-            token: API_TOKEN
+            key: process.env.API_KEY,
+            token: process.env.API_TOKEN
         },
         headers: {
-            'Cookie': 'dsc=835d5f553b6605dc6a4eb705bcf657de7f953eab26264d6ea4b49460ed5e683e'
+            'Cookie': process.env.COOKIE
         }
     });
     const boards = boardsResponse.data;
@@ -88,11 +86,11 @@ async function fetchAndSaveSubFolders(orgId, orgPath) {
 async function fetchAndSaveSubLists(boardId, boardPath) {
     const listsResponse = await axios.get(`https://api.trello.com/1/boards/${boardId}/lists`, {
         params: {
-            key: API_KEY,
-            token: API_TOKEN
+            key: process.env.API_KEY,
+            token: process.env.API_TOKEN
         },
         headers: {
-            'Cookie': 'dsc=835d5f553b6605dc6a4eb705bcf657de7f953eab26264d6ea4b49460ed5e683e'
+            'Cookie': process.env.COOKIE
         }
     });
     const lists = listsResponse.data;
@@ -102,7 +100,7 @@ async function fetchAndSaveSubLists(boardId, boardPath) {
         const listPath = path.join(boardPath, listName);
 
         //if (!fs.existsSync(listPath)) {
-            fs.mkdirSync(listPath);
+        fs.mkdirSync(listPath);
         // } else { 
         //     console.log(`Pulando lista ${listName} porque já foi salva.`);
         //     await fetchAndSaveSubCards(list.id, listPath);
@@ -118,11 +116,11 @@ async function fetchAndSaveSubLists(boardId, boardPath) {
 async function fetchAndSaveSubCards(listId, listPath) {
     const cardsResponse = await axios.get(`https://api.trello.com/1/lists/${listId}/cards`, {
         params: {
-            key: API_KEY,
-            token: API_TOKEN
+            key: process.env.API_KEY,
+            token: process.env.API_TOKEN
         },
         headers: {
-            'Cookie': 'dsc=835d5f553b6605dc6a4eb705bcf657de7f953eab26264d6ea4b49460ed5e683e'
+            'Cookie': process.env.COOKIE
         }
     });
     const cards = cardsResponse.data;
@@ -132,28 +130,27 @@ async function fetchAndSaveSubCards(listId, listPath) {
         const cardPath = path.join(listPath, cardName);
 
         //if (!fs.existsSync(cardPath)) {
-            fs.mkdirSync(cardPath);
-       // } else {
+        fs.mkdirSync(cardPath);
+        // } else {
         //    console.log(`Pulando cartão ${cardName} porque já foi salvo.`);
         //    continue;
-       // }
+        // }
 
         fs.writeFileSync(path.join(cardPath, 'card.json'), JSON.stringify(card, null, 2));
 
         await fetchAndSaveActions(card.id, cardPath);
     }
 
-    main();
 }
 
 async function fetchAndSaveActions(cardId, cardPath) {
     const actionsResponse = await axios.get(`https://api.trello.com/1/cards/${cardId}/actions`, {
         params: {
-            key: API_KEY,
-            token: API_TOKEN
+            key: process.env.API_KEY,
+            token: process.env.API_TOKEN
         },
         headers: {
-            'Cookie': 'dsc=835d5f553b6605dc6a4eb705bcf657de7f953eab26264d6ea4b49460ed5e683e'
+            'Cookie': process.env.COOKIE
         }
     });
     const actions = actionsResponse.data;
@@ -161,4 +158,7 @@ async function fetchAndSaveActions(cardId, cardPath) {
     fs.writeFileSync(path.join(cardPath, 'actions.json'), JSON.stringify(actions, null, 2));
 }
 
-fetchAndSaveOrganizationData();
+(async () => {
+    await fetchAndSaveOrganizationData();
+    await main(); 
+})();
