@@ -1,11 +1,9 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { main } = require('./migrateSimaTrello.js'); 
-const { process } = require('process');
+const { main } = require('./migrateSimaTrello.js');
 //import config from './config/dbConfig.js'
-
-require('dotenv').config(); 
+require('dotenv').config();
 
 async function fetchAndSaveOrganizationData() {
     try {
@@ -101,13 +99,13 @@ async function fetchAndSaveSubLists(boardId, boardPath) {
         const listName = list.name.replace(/\//g, "-");
         const listPath = path.join(boardPath, listName);
 
-        //if (!fs.existsSync(listPath)) {
-        fs.mkdirSync(listPath);
-        // } else { 
-        //     console.log(`Pulando lista ${listName} porque já foi salva.`);
-        //     await fetchAndSaveSubCards(list.id, listPath);
-        //     continue;
-        // }
+        if (!fs.existsSync(listPath)) {
+            fs.mkdirSync(listPath);
+        } else {
+            console.log(`Pulando lista ${listName} porque já foi salva.`);
+            await fetchAndSaveSubCards(list.id, listPath);
+            continue;
+        }
 
         fs.writeFileSync(path.join(listPath, 'list.json'), JSON.stringify(list, null, 2));
 
@@ -131,12 +129,12 @@ async function fetchAndSaveSubCards(listId, listPath) {
         const cardName = card.shortLink;
         const cardPath = path.join(listPath, cardName);
 
-        //if (!fs.existsSync(cardPath)) {
-        fs.mkdirSync(cardPath);
-        // } else {
-        //    console.log(`Pulando cartão ${cardName} porque já foi salvo.`);
-        //    continue;
-        // }
+        if (!fs.existsSync(cardPath)) {
+            fs.mkdirSync(cardPath);
+        } else {
+            console.log(`Cartão ${cardName} já  existe.`);
+            continue;
+        }
 
         fs.writeFileSync(path.join(cardPath, 'card.json'), JSON.stringify(card, null, 2));
 
@@ -158,9 +156,7 @@ async function fetchAndSaveActions(cardId, cardPath) {
     const actions = actionsResponse.data;
 
     fs.writeFileSync(path.join(cardPath, 'actions.json'), JSON.stringify(actions, null, 2));
+    main();
 }
 
-(async () => {
-    await fetchAndSaveOrganizationData();
-    await main(); 
-})();
+fetchAndSaveOrganizationData();
