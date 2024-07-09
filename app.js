@@ -1,9 +1,11 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-const { main } = require('./migrateSimaTrello.js');
+const { main } = require('./migrateSimaTrello.js'); 
+const { process } = require('process');
 //import config from './config/dbConfig.js'
-require('dotenv').config();
+
+require('dotenv').config(); 
 
 async function fetchAndSaveOrganizationData() {
     try {
