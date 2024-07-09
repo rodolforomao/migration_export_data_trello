@@ -47,6 +47,7 @@ async function fetchAndSaveOrganizationData() {
             await fetchAndSaveSubFolders(org.id, orgPath);
         }
 
+        main()
         console.log('Informações dos quadros, listas, cartões e ações foram salvos com sucesso em trelloRestore!');
     } catch (error) {
         console.error('Ocorreu um erro ao buscar ou salvar as informações:', error);
@@ -131,13 +132,14 @@ async function fetchAndSaveSubCards(listId, listPath) {
 
         if (!fs.existsSync(cardPath)) {
             fs.mkdirSync(cardPath);
+            console.log(`Cartão ${cardName} criado na pasta.`);
         } else {
             console.log(`Cartão ${cardName} já  existe.`);
             continue;
         }
 
         fs.writeFileSync(path.join(cardPath, 'card.json'), JSON.stringify(card, null, 2));
-
+          
         await fetchAndSaveActions(card.id, cardPath);
     }
 
@@ -156,7 +158,6 @@ async function fetchAndSaveActions(cardId, cardPath) {
     const actions = actionsResponse.data;
 
     fs.writeFileSync(path.join(cardPath, 'actions.json'), JSON.stringify(actions, null, 2));
-    main();
 }
 
 fetchAndSaveOrganizationData();

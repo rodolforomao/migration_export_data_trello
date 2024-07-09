@@ -351,7 +351,4 @@ async function processDirectories(directoryPath, pool) {
     }
 }
 
-
-
-// Executa a função principal
-main();
+module.exports = { main };
