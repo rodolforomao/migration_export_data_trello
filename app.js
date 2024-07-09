@@ -2,7 +2,7 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const { main } = require('./migrateSimaTrello.js'); 
-
+const { process } = require('process');
 import config from './config/dbConfig.js'
 
 
@@ -10,11 +10,11 @@ async function fetchAndSaveOrganizationData() {
     try {
         const organizationsResponse = await axios.get('https://api.trello.com/1/members/me/organizations', {
             params: {
-                key: config.API_KEY,
-                token: config.API_TOKEN
+                key: process.env.API_KEY,
+                token: process.env.API_TOKEN
             },
             headers: {
-                'Cookie': config.COOKIE
+                'Cookie': process.env.COOKIE
             }
         });
         const organizations = organizationsResponse.data;
