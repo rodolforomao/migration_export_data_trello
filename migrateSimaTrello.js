@@ -1,13 +1,14 @@
 const fs = require('fs');
 const sql = require('mssql');
 const path = require('path');
+const { process } = require('process');
 
 // Configurações de conexão com o banco de dados SQL Server
 const config = {
-    user: 'luiz.aguiar',
-    password: '139755',
-    server: 'DFSNPE0BT4FWN',
-    database: 'SIMA',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER,
+    database: process.env.DB_DATABASE_NAME,
     options: {
         encrypt: true, // Se você estiver usando Azure SQL, defina como true
         trustServerCertificate: true // Se você estiver usando Azure SQL, defina como true

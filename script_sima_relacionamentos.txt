@@ -1,0 +1,375 @@
+BEGIN TRY
+    BEGIN TRANSACTION;
+    -- Tabela User
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_User')
+    BEGIN
+        ALTER TABLE [dbo].[User] ADD CONSTRAINT [PK_User] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    -- Tabela Desktop
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_Desktop')
+    BEGIN
+        ALTER TABLE [dbo].[Desktop] ADD CONSTRAINT [PK_Desktop] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Desktop_User')
+    BEGIN
+        ALTER TABLE [dbo].[Desktop] DROP CONSTRAINT [FK_Desktop_User];
+    END
+
+    ALTER TABLE [dbo].[Desktop] WITH CHECK ADD CONSTRAINT [FK_Desktop_User] FOREIGN KEY ([userId]) REFERENCES [dbo].[User] ([id]);
+    ALTER TABLE [dbo].[Desktop] CHECK CONSTRAINT [FK_Desktop_User];
+
+    -- Tabela Project
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_Project')
+    BEGIN
+        ALTER TABLE [dbo].[Project] ADD CONSTRAINT [PK_Project] PRIMARY KEY CLUSTERED ([id] ASC);
+		ALTER TALBE [dbo].[Project] ADD fullname varchar(255) 
+
+    END
+
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Project_User')
+    BEGIN
+        ALTER TABLE [dbo].[Project] DROP CONSTRAINT [FK_Project_User];
+    END
+
+    ALTER TABLE [dbo].[Project] WITH CHECK ADD CONSTRAINT [FK_Project_User] FOREIGN KEY ([userId]) REFERENCES [dbo].[User] ([id]);
+    ALTER TABLE [dbo].[Project] CHECK CONSTRAINT [FK_Project_User];
+
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Project_Desktop')
+    BEGIN
+        ALTER TABLE [dbo].[Project] DROP CONSTRAINT [FK_Project_Desktop];
+    END
+
+    ALTER TABLE [dbo].[Project] WITH CHECK ADD CONSTRAINT [FK_Project_Desktop] FOREIGN KEY ([desktopId]) REFERENCES [dbo].[Desktop] ([id]);
+    ALTER TABLE [dbo].[Project] CHECK CONSTRAINT [FK_Project_Desktop];
+
+    -- Tabela ProfileKanban
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_ProfileKanban')
+    BEGIN
+        ALTER TABLE [dbo].[ProfileKanban] ADD CONSTRAINT [PK_ProfileKanban] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    -- Drop existing foreign key constraint if it exists
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ProfileKanban_PermissionKanban')
+    BEGIN
+        ALTER TABLE [dbo].[ProfileKanban] DROP CONSTRAINT [FK_ProfileKanban_PermissionKanban];
+    END
+
+    -- Tabela ResourceKanban
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_ResourceKanban')
+    BEGIN
+        ALTER TABLE [dbo].[ResourceKanban] ADD CONSTRAINT [PK_ResourceKanban] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    -- Tabela AcoesAssessorias
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_AcoesAssessorias')
+    BEGIN
+        ALTER TABLE [dbo].[AcoesAssessorias] ADD CONSTRAINT [PK_AcoesAssessorias] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_AcoesAssessorias_Project')
+    BEGIN
+        ALTER TABLE [dbo].[AcoesAssessorias] DROP CONSTRAINT [FK_AcoesAssessorias_Project];
+    END
+
+    ALTER TABLE [dbo].[AcoesAssessorias] WITH CHECK ADD CONSTRAINT [FK_AcoesAssessorias_Project] FOREIGN KEY ([numero_acao]) REFERENCES [dbo].[Project] ([id]);
+    ALTER TABLE [dbo].[AcoesAssessorias] CHECK CONSTRAINT [FK_AcoesAssessorias_Project];
+
+    -- Tabela TipoAtividade
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_TipoAtividade')
+    BEGIN
+        ALTER TABLE [dbo].[TipoAtividade] ADD CONSTRAINT [PK_TipoAtividade] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_TipoAtividade_AcoesAssessorias')
+    BEGIN
+        ALTER TABLE [dbo].[TipoAtividade] DROP CONSTRAINT [FK_TipoAtividade_AcoesAssessorias];
+    END
+
+    ALTER TABLE [dbo].[TipoAtividade] WITH CHECK ADD CONSTRAINT [FK_TipoAtividade_AcoesAssessorias] FOREIGN KEY ([id_AcoesAssessorias]) REFERENCES [dbo].[AcoesAssessorias] ([id]);
+    ALTER TABLE [dbo].[TipoAtividade] CHECK CONSTRAINT [FK_TipoAtividade_AcoesAssessorias];
+
+    -- Tabela List
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_List')
+    BEGIN
+        ALTER TABLE [dbo].[List] ADD CONSTRAINT [PK_List] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    -- Lidar com conflitos na tabela List
+    -- Encontrar registros na tabela List com projectId inválido
+    DECLARE @InvalidListIds TABLE (id INT);
+
+    INSERT INTO @InvalidListIds (id)
+    SELECT l.id
+    FROM dbo.List AS l
+    LEFT JOIN dbo.Project AS p ON l.projectId = p.id
+    WHERE p.id IS NULL;
+
+    -- Remover registros inválidos da tabela List
+    DELETE FROM dbo.List
+    WHERE id IN (SELECT id FROM @InvalidListIds);
+
+    -- Recriar a chave estrangeira
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_List_Project')
+    BEGIN
+        ALTER TABLE [dbo].[List] DROP CONSTRAINT [FK_List_Project];
+    END
+
+    ALTER TABLE [dbo].[List] WITH CHECK ADD CONSTRAINT [FK_List_Project] FOREIGN KEY ([projectId]) REFERENCES [dbo].[Project] ([id]);
+    ALTER TABLE [dbo].[List] CHECK CONSTRAINT [FK_List_Project];
+
+    -- Tabela Member
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_Member')
+    BEGIN
+        ALTER TABLE [dbo].[Member] ADD CONSTRAINT [PK_Member] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Member_User')
+    BEGIN
+        ALTER TABLE [dbo].[Member] DROP CONSTRAINT [FK_Member_User];
+    END
+
+    ALTER TABLE [dbo].[Member] WITH CHECK ADD CONSTRAINT [FK_Member_User] FOREIGN KEY ([userId]) REFERENCES [dbo].[User] ([id]);
+    ALTER TABLE [dbo].[Member] CHECK CONSTRAINT [FK_Member_User];
+
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Member_Desktop')
+    BEGIN
+        ALTER TABLE [dbo].[Member] DROP CONSTRAINT [FK_Member_Desktop];
+    END
+
+    ALTER TABLE [dbo].[Member] WITH CHECK ADD CONSTRAINT [FK_Member_Desktop] FOREIGN KEY ([desktopId]) REFERENCES [dbo].[Desktop] ([id]);
+    ALTER TABLE [dbo].[Member] CHECK CONSTRAINT [FK_Member_Desktop];
+
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Member_Project')
+    BEGIN
+        ALTER TABLE [dbo].[Member] DROP CONSTRAINT [FK_Member_Project];
+    END
+
+    ALTER TABLE [dbo].[Member] WITH CHECK ADD CONSTRAINT [FK_Member_Project] FOREIGN KEY ([projectId]) REFERENCES [dbo].[Project] ([id]);
+    ALTER TABLE [dbo].[Member] CHECK CONSTRAINT [FK_Member_Project];
+
+    -- Tabela Issue
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_Issue')
+    BEGIN
+        ALTER TABLE [dbo].[Issue] ADD CONSTRAINT [PK_Issue] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    -- Identificar registros inválidos na tabela Issue
+    DECLARE @InvalidIssueIds TABLE (id INT);
+
+    INSERT INTO @InvalidIssueIds (id)
+    SELECT i.id
+    FROM dbo.Issue AS i
+    LEFT JOIN dbo.List AS l ON i.listId = l.id
+    WHERE l.id IS NULL;
+
+    -- Remover registros inválidos da tabela Issue
+    DELETE FROM dbo.Issue
+    WHERE id IN (SELECT id FROM @InvalidIssueIds);
+
+    -- Recriar a chave estrangeira
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Issue_List')
+    BEGIN
+        ALTER TABLE [dbo].[Issue] DROP CONSTRAINT [FK_Issue_List];
+    END
+
+    ALTER TABLE [dbo].[Issue] WITH CHECK ADD CONSTRAINT [FK_Issue_List] FOREIGN KEY ([listId]) REFERENCES [dbo].[List] ([id]);
+    ALTER TABLE [dbo].[Issue] CHECK CONSTRAINT [FK_Issue_List];
+
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Issue_Reporter')
+    BEGIN
+        ALTER TABLE [dbo].[Issue] DROP CONSTRAINT [FK_Issue_Reporter];
+    END
+
+    ALTER TABLE [dbo].[Issue] WITH CHECK ADD CONSTRAINT [FK_Issue_Reporter] FOREIGN KEY ([reporterId]) REFERENCES [dbo].[User] ([id]);
+    ALTER TABLE [dbo].[Issue] CHECK CONSTRAINT [FK_Issue_Reporter];
+
+    -- Tabela ReviewTask
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_ReviewTask')
+    BEGIN
+        ALTER TABLE [dbo].[ReviewTask] ADD CONSTRAINT [PK_ReviewTask] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+	    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_ReviewTask_Issue')
+    BEGIN
+        ALTER TABLE [dbo].[ReviewTask] DROP CONSTRAINT [FK_ReviewTask_Issue];
+    END
+
+	ALTER TABLE [dbo].[ReviewTask] WITH CHECK ADD CONSTRAINT [FK_ReviewTask_Issue] FOREIGN KEY ([issueId]) REFERENCES [dbo].[Issue] ([id]);
+    ALTER TABLE [dbo].[ReviewTask] CHECK CONSTRAINT [FK_ReviewTask_Issue];
+
+    -- Tabela PermissionKanban
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_PermissionKanban')
+    BEGIN
+        ALTER TABLE [dbo].[PermissionKanban] ADD CONSTRAINT [PK_PermissionKanban] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    -- Drop existing FK constraint if exists
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_PermissionKanban_ProfileKanban')
+    BEGIN
+        ALTER TABLE [dbo].[PermissionKanban] DROP CONSTRAINT [FK_PermissionKanban_ProfileKanban];
+    END
+
+	    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_PermissionKanban_User')
+    BEGIN
+        ALTER TABLE [dbo].[PermissionKanban] DROP CONSTRAINT [FK_PermissionKanban_User];
+    END
+
+	    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_PermissionKanban_ResourceKanban')
+    BEGIN
+        ALTER TABLE [dbo].[PermissionKanban] DROP CONSTRAINT [FK_PermissionKanban_ResourceKanban];
+    END
+
+    -- Identificar e lidar com registros órfãos
+    DECLARE @OrphanedPermissionKanbanIds TABLE (id INT);
+
+    INSERT INTO @OrphanedPermissionKanbanIds (id)
+    SELECT pk.id
+    FROM dbo.PermissionKanban AS pk
+    LEFT JOIN dbo.[User] AS u ON pk.userId = u.id
+    WHERE u.id IS NULL;
+
+    -- Remover registros órfãos da tabela PermissionKanban
+    DELETE FROM dbo.PermissionKanban
+    WHERE id IN (SELECT id FROM @OrphanedPermissionKanbanIds);
+
+    -- Recriar a chave estrangeira
+    ALTER TABLE [dbo].[PermissionKanban] WITH CHECK ADD CONSTRAINT [FK_PermissionKanban_User] FOREIGN KEY ([userId]) REFERENCES [dbo].[User] ([id]);
+    ALTER TABLE [dbo].[PermissionKanban] CHECK CONSTRAINT [FK_PermissionKanban_User];
+
+	ALTER TABLE [dbo].[PermissionKanban] WITH CHECK ADD CONSTRAINT [FK_PermissionKanban_ProfileKanban] FOREIGN KEY ([profileId]) REFERENCES [dbo].[ProfileKanban] ([id]);
+    ALTER TABLE [dbo].[PermissionKanban] CHECK CONSTRAINT [FK_PermissionKanban_ProfileKanban];
+
+	
+	ALTER TABLE [dbo].[PermissionKanban] WITH CHECK ADD CONSTRAINT [FK_PermissionKanban_ResourceKanban] FOREIGN KEY ([resourceId]) REFERENCES [dbo].[ResourceKanban] ([id]);
+    ALTER TABLE [dbo].[PermissionKanban] CHECK CONSTRAINT [FK_PermissionKanban_ResourceKanban];
+
+    -- Tabela Comment
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'PK_Comment')
+    BEGIN
+        ALTER TABLE [dbo].[Comment] ADD CONSTRAINT [PK_Comment] PRIMARY KEY CLUSTERED ([id] ASC);
+    END
+
+    -- Identificar registros inválidos na tabela Comment
+    DECLARE @InvalidCommentIds TABLE (id INT);
+
+    INSERT INTO @InvalidCommentIds (id)
+    SELECT c.id
+    FROM dbo.Comment AS c
+    LEFT JOIN dbo.Issue AS i ON c.issueId = i.id
+    WHERE i.id IS NULL;
+
+    -- Remover registros inválidos da tabela Comment
+    DELETE FROM dbo.Comment
+    WHERE id IN (SELECT id FROM @InvalidCommentIds);
+
+    -- Recriar a chave estrangeira
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Comment_Issue')
+    BEGIN
+        ALTER TABLE [dbo].[Comment] DROP CONSTRAINT [FK_Comment_Issue];
+    END
+
+    ALTER TABLE [dbo].[Comment] WITH CHECK ADD CONSTRAINT [FK_Comment_Issue] FOREIGN KEY ([issueId]) REFERENCES [dbo].[Issue] ([id]);
+    ALTER TABLE [dbo].[Comment] CHECK CONSTRAINT [FK_Comment_Issue];
+
+    -- Tabela Assignee
+    -- Identificar registros inválidos na tabela Assignee
+    DECLARE @InvalidAssigneeIds TABLE (id INT);
+
+    INSERT INTO @InvalidAssigneeIds (id)
+    SELECT a.id
+    FROM dbo.Assignee AS a
+    LEFT JOIN dbo.Issue AS i ON a.issueId = i.id
+    WHERE i.id IS NULL;
+
+    -- Remover registros inválidos da tabela Assignee
+    DELETE FROM dbo.Assignee
+    WHERE id IN (SELECT id FROM @InvalidAssigneeIds);
+
+    -- Recriar a chave estrangeira
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_Assignee_Issue')
+    BEGIN
+        ALTER TABLE [dbo].[Assignee] DROP CONSTRAINT [FK_Assignee_Issue];
+    END
+
+    ALTER TABLE [dbo].[Assignee] WITH CHECK ADD CONSTRAINT [FK_Assignee_Issue] FOREIGN KEY ([issueId]) REFERENCES [dbo].[Issue] ([id]);
+    ALTER TABLE [dbo].[Assignee] CHECK CONSTRAINT [FK_Assignee_Issue];
+
+    -- Tabela HistoryMovimentList
+    -- Remover a chave estrangeira para List se existir (caso incorreto)
+    IF EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_HistoryMovimentList_Issue')
+    BEGIN
+        ALTER TABLE [dbo].[HistoryMovimentList] DROP CONSTRAINT [FK_HistoryMovimentList_Issue];
+    END
+
+    -- Identificar registros inválidos na tabela HistoryMovimentList
+    DECLARE @InvalidMovimentListIds TABLE (id INT);
+
+    INSERT INTO @InvalidMovimentListIds (id)
+    SELECT hml.id
+    FROM dbo.HistoryMovimentList AS hml
+    LEFT JOIN dbo.Issue AS i ON hml.issueId = i.id
+    WHERE i.id IS NULL;
+
+    -- Remover registros inválidos da tabela HistoryMovimentList
+    DELETE FROM dbo.HistoryMovimentList
+    WHERE id IN (SELECT id FROM @InvalidMovimentListIds);
+
+    -- Recriar a chave estrangeira para Issue
+    ALTER TABLE [dbo].[HistoryMovimentList] WITH CHECK ADD CONSTRAINT [FK_HistoryMovimentList_Issue] FOREIGN KEY ([issueId]) REFERENCES [dbo].[Issue] ([id]);
+    ALTER TABLE [dbo].[HistoryMovimentList] CHECK CONSTRAINT [FK_HistoryMovimentList_Issue];
+	
+		    -- Verifica se a tabela ChecklistItems existe e a deleta se existir
+    IF OBJECT_ID('dbo.ChecklistItems', 'U') IS NOT NULL
+    BEGIN
+        DROP TABLE dbo.ChecklistItems;
+    END
+
+    -- Verifica se a tabela Checklist existe e a deleta se existir
+    IF OBJECT_ID('dbo.Checklist', 'U') IS NOT NULL
+    BEGIN
+        DROP TABLE dbo.Checklist;
+    END
+
+    -- Cria a tabela Checklist se não existir
+    IF OBJECT_ID('dbo.Checklist', 'U') IS NULL
+    BEGIN
+        CREATE TABLE dbo.Checklist (
+            checklistID INT PRIMARY KEY IDENTITY(1,1),
+            issueId INT,
+            userId INT,
+            checklistName NVARCHAR(100) NOT NULL,
+            createdAt DATETIME DEFAULT GETDATE(),
+            updatedAt DATETIME DEFAULT GETDATE(),
+            FOREIGN KEY (userId) REFERENCES [User](id),
+            FOREIGN KEY (issueId) REFERENCES Issue(id)
+        );
+    END
+
+
+    -- Cria a tabela ChecklistItems se não existir
+    IF OBJECT_ID('dbo.ChecklistItems', 'U') IS NULL
+    BEGIN
+        CREATE TABLE dbo.ChecklistItems (
+            checklistItemID INT PRIMARY KEY IDENTITY(1,1),
+            checklistID INT,
+            userId INT,
+            itemName NVARCHAR(100) NOT NULL,
+            isCompleted DECIMAL(5,2) DEFAULT 0,
+            createdAt DATETIME DEFAULT GETDATE(),
+            updatedAt DATETIME DEFAULT GETDATE(),
+            FOREIGN KEY (checklistID) REFERENCES dbo.Checklist(checklistID),
+            FOREIGN KEY (userId) REFERENCES [User](id)
+        );
+    END
+
+  COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    -- Se ocorrer um erro, faz o rollback da transação
+    ROLLBACK TRANSACTION;
+    -- Lança o erro para ser tratado externamente, se necessário
+    THROW;
+END CATCH;
+GO
