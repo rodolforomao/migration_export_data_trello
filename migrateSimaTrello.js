@@ -1,7 +1,7 @@
 const fs = require('fs');
 const sql = require('mssql');
 const path = require('path');
-require('dotenv').config(); 
+require('dotenv').config();
 
 // Configurações de conexão com o banco de dados SQL Server
 const config = {
@@ -84,7 +84,7 @@ async function insertProjectData(directoryPath, pool) {
 
         // Verifica se o arquivo existe
         if (!fs.existsSync(filePath)) {
-           console.log(`O arquivo ${filePath} não foi encontrado.`);
+            console.log(`O arquivo ${filePath} não foi encontrado.`);
         }
 
         // Lê o arquivo JSON
@@ -108,7 +108,7 @@ async function insertProjectData(directoryPath, pool) {
                 ), '${data.id}')
             `);
 
-            console.log(`Dados do arquivo ${filePath} inseridos com sucesso.`);
+            console.log(`Dados do arquivo inseridos com sucesso.`);
 
         }
     } catch (error) {
@@ -143,22 +143,23 @@ async function insertListData(directoryPath, pool) {
         if (result.recordset[0].count <= 0) {
 
             const query = `
-        INSERT INTO List (name, [order], createdAt, updatedAt, projectId, trelloIdList)
+        INSERT INTO List (name, [order], createdAt, updatedAt, projectId, trelloIdList, desktopId)
         VALUES (
             @name, 
             (SELECT ISNULL(MAX([order]), 0) + 1 FROM List WHERE projectId = (SELECT id FROM Project WHERE trelloIdCard = @projectId)),
             GETDATE(), 
             GETDATE(), 
             (SELECT id FROM Project WHERE trelloIdCard = @projectId), 
-            @trelloIdList
+            @trelloIdList,
+            (SELECT desktopId FROM Project WHERE trelloIdCard = @projectId)
         )
         
         `;
 
             await request.query(query);
-            console.log(`A List ${filePath}  já existe no banco de dados. Continuando o processo.`);
+            console.log(`A List ${data.name}  já existe no banco de dados. Continuando o processo.`);
         } else {
-            console.log(`Dados do arquivo ${filePath} ja existe.`);
+            console.log(`Dados do arquivo ja existe.`);
 
         }
 
@@ -175,7 +176,7 @@ async function processCardFile(cardFilePath, pool) {
 
         // Verifica se o arquivo existe
         if (!fs.existsSync(filePath)) {
-           console.log(`O arquivo ${filePath} não foi encontrado.`);
+            console.log(`O arquivo ${filePath} não foi encontrado.`);
         }
 
         // Lê o arquivo JSON
@@ -194,13 +195,14 @@ async function processCardFile(cardFilePath, pool) {
         request.input('idMembers', sql.NVarChar, (data.idMembers[0]));
         request.input('trelloIdIssue', sql.NVarChar, data.id);
 
-        const result = await pool.request()
+        await pool.request()
             .input('trelloId', sql.VarChar, data.id)
-            .query('SELECT COUNT(*) AS count FROM Issue WHERE trelloIdIssue = @trelloId');
+            .query('DELETE FROM Issue WHERE trelloIdIssue = @trelloId');
 
-        if (result.recordset[0].count <= 0) {
-            const query = `
-        INSERT INTO Issue ([order], priority, type, summary, descr, createdAt, updatedAt, listId, reporterId, codigoSei, dataPrazo, trelloIdIssue, listBadge)
+
+        const query = `
+        INSERT INTO Issue ([order], priority, type, summary, descr, createdAt, updatedAt, listId, reporterId, codigoSei, dataPrazo, trelloIdIssue, listBadge,
+        referencePeriod, projectId, desktopId)
         VALUES (
             (SELECT ISNULL(MAX([order]), 0) + 1 FROM Issue WHERE listId = (SELECT id FROM List WHERE trelloIdList = @idList)),
             0,
@@ -214,17 +216,21 @@ async function processCardFile(cardFilePath, pool) {
             NULL,
             NULL,
             @trelloIdIssue,
-            NULL
+            NULL,
+            NULL,
+            (SELECT projectId FROM List WHERE trelloIdList = @idList),
+            (SELECT desktopId FROM List WHERE trelloIdList = @idList)
+
         )
     `;
-            await request.query(query);
-            console.log(`O Issue ${filePath}  já existe no banco de dados. Continuando o processo.`);
+        await request.query(query);
+        console.log(`O Issue ${data.name}  inseridos com sucesso. Continuando o processo.`);
 
-        } else {
-            console.log(`Os dados do arquivo ${filePath} já existem.`);
-        }
+
+        console.log(`Os dados do arquivo  já existem.`);
+
     } catch (error) {
-        console.log(`Ocorreu um erro ao inserir dados do arquivo card.json:`);
+        console.log(`Ocorreu um erro ao inserir dados do arquivo card.json:`); //aqui
     }
 }
 
@@ -264,12 +270,10 @@ async function processActionsFile(actionsFilePath, pool) {
                 request.input('userId', sql.NVarChar, action.idMemberCreator);
                 request.input('trelloIdAction', sql.NVarChar, action.id);
 
-                const result = await pool.request()
+                await pool.request()
                     .input('trelloIdAction', sql.NVarChar, action.id)
-                    .query('SELECT COUNT(*) AS count FROM Comment WHERE trelloIdAction = @trelloIdAction');
-
-                if (result.recordset[0].count <= 0) {
-
+                    .query('DELETE FROM Comment WHERE trelloIdAction = @trelloIdAction');
+        
                     const query = `
                 INSERT INTO Comment (descr, createdAt, issueId, userId, trelloIdAction)
                 VALUES (@descr, 
@@ -281,14 +285,14 @@ async function processActionsFile(actionsFilePath, pool) {
 
                     await request.query(query);
 
-                    console.log(`Dados do arquivo ${filePath} inseridos na tabela Comment com sucesso.`);
-                }
+                    console.log(`Dados do arquivo Comment inseridos na tabela Comment com sucesso.`);
+                
             } else {
-                console.log(`O Comment ${filePath}  já existe no banco de dados. Continuando o processo.`);
+                console.log(`O Comment já existe no banco de dados. Continuando o processo.`);
             }
         }
     } catch (error) {
-        console.log(`Ocorreu um erro ao inserir dados do arquivo actions.json:`);
+        console.log(`Ocorreu um erro ao inserir dados do arquivo actions.json:`); //aqui
     }
 }
 

@@ -20,7 +20,7 @@ async function fetchAndSaveOrganizationData() {
         const organizations = [];
 
         organization.forEach(org => {
-            if (org.displayName === 'CGPERT') { // Substitua 'CGCONT' pelo displayName que você está procurando
+            if (org.displayName === '1. DIR') { // Substitua 'CGCONT' pelo displayName que você está procurando
                 organizations.push(org);
             }
         });
@@ -48,7 +48,7 @@ async function fetchAndSaveOrganizationData() {
         }
 
         main()
-        console.log('Informações dos quadros, listas, cartões e ações foram salvos com sucesso em trelloRestore!');
+        console.log('TAREFA MIGRATION TRELLO CONCLUIDA !');
     } catch (error) {
         console.error('Ocorreu um erro ao buscar ou salvar as informações:', error);
     }
