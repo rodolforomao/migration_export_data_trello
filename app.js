@@ -5,11 +5,6 @@ const { main } = require('./migrateSimaTrello.js');
 //import config from './config/dbConfig.js'
 require('dotenv').config();
 
-console.log('Configure onde a migração será realizada.');
-console.log('Aponto o .env para o banco de dados correto.');
-desktopNameExactly = 'CGPERT';
-return;
-
 async function fetchAndSaveOrganizationData() {
     try {
         const organizationsResponse = await axios.get('https://api.trello.com/1/members/me/organizations', {
@@ -25,7 +20,7 @@ async function fetchAndSaveOrganizationData() {
         const organizations = [];
 
         organization.forEach(org => {
-            if (org.displayName === desktopNameExactly) 
+            if (org.displayName === 'CGPERT') { // Substitua 'CGCONT' pelo displayName que você está procurando
                 organizations.push(org);
             }
         });
