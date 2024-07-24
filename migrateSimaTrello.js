@@ -15,6 +15,8 @@ const config = {
     }
 };
 
+const desktopIdChange = 2;
+
 // Função para verificar se o trelloIdProject já existe no banco de dados
 async function checkIfTrelloIdExists(trelloId, pool) {
     try {
@@ -55,7 +57,7 @@ async function insertOrganizationData(directoryPath, pool) {
             // Verifica se o trelloIdProject já existe no banco de dados
             const trelloIdExists = await checkIfTrelloIdExists(data.id, pool);
             if (trelloIdExists) {
-                console.log(`O Desktop ${data.id} já existe no banco de dados. Continuando o processo.`);
+                console.log(`O Desktop já existe no banco de dados. Continuando o processo.`);
             } else {
                 // Insere os dados na tabela Desktop
                 await pool.request().query(`
@@ -95,7 +97,7 @@ async function insertProjectData(directoryPath, pool) {
         // Verifica se o trelloIdCard já existe no banco de dados
         const trelloIdCardExists = await checkIfTrelloIdCardExists(data.id, pool);
         if (trelloIdCardExists) {
-            console.log(`O Project ${data.id} já existe no banco de dados. Continuando o processo.`);
+            console.log(`O Project já existe no banco de dados. Continuando o processo.`);
 
             // Executa a função para inserir dados da lista
             await insertListData(directoryPath, data.id, pool);
@@ -157,7 +159,7 @@ async function insertListData(directoryPath, pool) {
         `;
 
             await request.query(query);
-            console.log(`A List ${data.name}  já existe no banco de dados. Continuando o processo.`);
+            console.log(`A List  já existe no banco de dados. Continuando o processo.`);
         } else {
             console.log(`Dados do arquivo ja existe.`);
 
@@ -195,11 +197,6 @@ async function processCardFile(cardFilePath, pool) {
         request.input('idMembers', sql.NVarChar, (data.idMembers[0]));
         request.input('trelloIdIssue', sql.NVarChar, data.id);
 
-        await pool.request()
-            .input('trelloId', sql.VarChar, data.id)
-            .query('DELETE FROM Issue WHERE trelloIdIssue = @trelloId');
-
-
         const query = `
         INSERT INTO Issue ([order], priority, type, summary, descr, createdAt, updatedAt, listId, reporterId, codigoSei, dataPrazo, trelloIdIssue, listBadge,
         referencePeriod, projectId, desktopId)
@@ -224,7 +221,7 @@ async function processCardFile(cardFilePath, pool) {
         )
     `;
         await request.query(query);
-        console.log(`O Issue ${data.name}  inseridos com sucesso. Continuando o processo.`);
+        console.log(`O Issue  inseridos com sucesso. Continuando o processo.`);
 
 
         console.log(`Os dados do arquivo  já existem.`);
@@ -273,8 +270,8 @@ async function processActionsFile(actionsFilePath, pool) {
                 await pool.request()
                     .input('trelloIdAction', sql.NVarChar, action.id)
                     .query('DELETE FROM Comment WHERE trelloIdAction = @trelloIdAction');
-        
-                    const query = `
+
+                const query = `
                 INSERT INTO Comment (descr, createdAt, issueId, userId, trelloIdAction)
                 VALUES (@descr, 
                 @createdAt, 
@@ -283,10 +280,10 @@ async function processActionsFile(actionsFilePath, pool) {
                 @trelloIdAction);
                 `;
 
-                    await request.query(query);
+                await request.query(query);
 
-                    console.log(`Dados do arquivo Comment inseridos na tabela Comment com sucesso.`);
-                
+                console.log(`Dados do arquivo Comment inseridos na tabela Comment com sucesso.`);
+
             } else {
                 console.log(`O Comment já existe no banco de dados. Continuando o processo.`);
             }
@@ -301,6 +298,25 @@ async function main() {
     try {
         // Conecta ao banco de dados
         const pool = await sql.connect(config);
+
+        await pool.request()
+            .query(`
+            DELETE HML
+              FROM HistoryMovimentList HML
+              INNER JOIN Issue I ON I.id = HML.issueId 
+              WHERE I.desktopId = '${desktopIdChange}';
+
+            DELETE C 
+              FROM Comment C
+              INNER JOIN Issue I ON I.id = C.issueId 
+              WHERE I.desktopId = '${desktopIdChange}';
+                                      
+              DELETE A
+              FROM Assignee A
+              INNER JOIN Issue I ON I.id = A.issueId 
+              WHERE I.desktopId = '${desktopIdChange}' 
+              
+             DELETE FROM Issue WHERE desktopId = ${desktopIdChange};`);
 
         // Caminho raiz onde estão as pastas
         const rootDirectory = path.resolve(__dirname, 'trelloRestore');

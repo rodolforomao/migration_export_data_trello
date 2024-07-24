@@ -47,7 +47,7 @@ async function fetchAndSaveOrganizationData() {
             await fetchAndSaveSubFolders(org.id, orgPath);
         }
 
-        main()
+         main()
         console.log('TAREFA MIGRATION TRELLO CONCLUIDA !');
     } catch (error) {
         console.error('Ocorreu um erro ao buscar ou salvar as informações:', error);
