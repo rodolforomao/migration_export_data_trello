@@ -7,6 +7,8 @@ require('dotenv').config();
 
 async function fetchAndSaveOrganizationData() {
     try {
+        const start = Date.now();  // Início do tempo de execução
+
         const organizationsResponse = await axios.get('https://api.trello.com/1/members/me/organizations', {
             params: {
                 key: process.env.API_KEY,
@@ -16,11 +18,25 @@ async function fetchAndSaveOrganizationData() {
                 'Cookie': process.env.COOKIE
             }
         });
+
         const organization = organizationsResponse.data;
         const organizations = [];
 
+        // const displayNamesProcurados = [
+        //     'CGMRR',
+        //     'CGMRR - CENTRO-OESTE',
+        //     'CGMRR - NORDESTE',
+        //     'CGMRR - NORTE',
+        //     'CGMRR - SUDESTE',
+        //     'CGMRR - SUL'
+        // ];
+
+        const displayNamesProcurados = [
+            'COMEC'
+        ];
+
         organization.forEach(org => {
-            if (org.displayName === '1. DIR') { // Substitua 'CGCONT' pelo displayName que você está procurando
+            if (displayNamesProcurados.includes(org.displayName)) {
                 organizations.push(org);
             }
         });
@@ -47,8 +63,12 @@ async function fetchAndSaveOrganizationData() {
             await fetchAndSaveSubFolders(org.id, orgPath);
         }
 
-         main()
-        console.log('TAREFA MIGRATION TRELLO CONCLUIDA !');
+        main();
+
+        const end = Date.now();  // Fim do tempo de execução
+        const executionTime = (end - start) / 1000;  // Tempo de execução em segundos
+
+        console.log(`TAREFA MIGRATION TRELLO CONCLUIDA! Tempo total de execução: ${executionTime} segundos`);
     } catch (error) {
         console.error('Ocorreu um erro ao buscar ou salvar as informações:', error);
     }
@@ -64,7 +84,7 @@ async function fetchAndSaveSubFolders(orgId, orgPath) {
             'Cookie': process.env.COOKIE
         }
     });
-    const boards = boardsResponse.data;
+    const boards = [boardsResponse.data[4]];
 
     for (const board of boards) {
         const boardName = board.name.replace(/\//g, "-");
@@ -134,15 +154,14 @@ async function fetchAndSaveSubCards(listId, listPath) {
             fs.mkdirSync(cardPath);
             console.log(`Cartão ${cardName} criado na pasta.`);
         } else {
-            console.log(`Cartão ${cardName} já  existe.`);
+            console.log(`Cartão ${cardName} já existe.`);
             continue;
         }
 
         fs.writeFileSync(path.join(cardPath, 'card.json'), JSON.stringify(card, null, 2));
-          
+
         await fetchAndSaveActions(card.id, cardPath);
     }
-
 }
 
 async function fetchAndSaveActions(cardId, cardPath) {
