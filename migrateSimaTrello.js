@@ -17,7 +17,13 @@ const config = {
 };
 
 const desktopIdChange = [
-    '29'
+    'CGMRR',
+    'CGMRR - CENTRO-OESTE',
+    'CGMRR - NORDESTE',
+    'CGMRR - NORTE',
+    'CGMRR - SUDESTE',
+    'CGMRR - SUL',
+    'COMEC'
 ];
 
 // Função para verificar se o trelloIdProject já existe no banco de dados
@@ -528,60 +534,72 @@ async function main() {
            DELETE A
            FROM Accompanied A
            INNER JOIN Issue I ON I.id = A.issueId
-           WHERE I.desktopId IN (${desktopsString})
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})
 
            -- Delete from Badges
            DELETE IB
            FROM [IssueBadges] IB
            INNER JOIN Issue I ON I.id = IB.issueId
            INNER JOIN Badge B ON I.id = IB.badgeId
-           WHERE I.desktopId IN (29)
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})
 
 		   DELETE B
            FROM Badge B
            INNER JOIN [IssueBadges] IB ON B.id = IB.badgeId
            INNER JOIN Issue I ON I.id = IB.issueId
-           WHERE I.desktopId IN (29)
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})
 
            -- Delete from Notification
            DELETE N
            FROM Notification N
            INNER JOIN Issue I ON I.id = N.issueId
-           WHERE I.desktopId IN (${desktopsString})
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})
 
            -- Delete from LinkedCard
            DELETE LC
            FROM LinkedCard LC
            INNER JOIN Issue I ON I.id = LC.parentIdIssueId
-           WHERE I.desktopId IN (${desktopsString})
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})
 
            -- Delete from ReviewTask
            DELETE RT
            FROM ReviewTask RT
            INNER JOIN Issue I ON I.id = RT.issueId
-           WHERE I.desktopId IN (${desktopsString})
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})
 
            -- Delete from Comment
            DELETE C
            FROM Comment C
            INNER JOIN Issue I ON I.id = C.issueId
-           WHERE I.desktopId IN (${desktopsString})
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})
 
            -- Delete from Assignee
            DELETE A
            FROM Assignee A
            INNER JOIN Issue I ON I.id = A.issueId
-           WHERE I.desktopId IN (${desktopsString})
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})
 
            -- Delete from HistoryMovimentList
            DELETE HML
            FROM HistoryMovimentList HML
            INNER JOIN Issue I ON I.id = HML.issueId
-           WHERE I.desktopId IN (${desktopsString})
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})           
 
            -- Delete from Issue
-           DELETE FROM Issue
-           WHERE desktopId IN (${desktopsString})`);
+           DELETE FROM Issue I
+           INNER JOIN Desktop D ON D.id = I.desktopId
+           WHERE D.nameDesktop (${desktopsString})`
+        
+        );
 
         // Caminho raiz onde estão as pastas
         const rootDirectory = path.resolve(__dirname, 'trelloRestore');

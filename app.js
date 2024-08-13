@@ -22,18 +22,16 @@ async function fetchAndSaveOrganizationData() {
         const organization = organizationsResponse.data;
         const organizations = [];
 
-        // const displayNamesProcurados = [
-        //     'CGMRR',
-        //     'CGMRR - CENTRO-OESTE',
-        //     'CGMRR - NORDESTE',
-        //     'CGMRR - NORTE',
-        //     'CGMRR - SUDESTE',
-        //     'CGMRR - SUL'
-        // ];
-
         const displayNamesProcurados = [
+            'CGMRR',
+            'CGMRR - CENTRO-OESTE',
+            'CGMRR - NORDESTE',
+            'CGMRR - NORTE',
+            'CGMRR - SUDESTE',
+            'CGMRR - SUL',
             'COMEC'
         ];
+
 
         organization.forEach(org => {
             if (displayNamesProcurados.includes(org.displayName)) {
@@ -84,7 +82,13 @@ async function fetchAndSaveSubFolders(orgId, orgPath) {
             'Cookie': process.env.COOKIE
         }
     });
-    const boards = [boardsResponse.data[4]];
+
+    let boards = boardsResponse.data;
+
+    if (orgId === "5fbd5f5c7c3aaa09c2c5e492") {
+        boards = [boardsResponse.data[4]];
+    }
+
 
     for (const board of boards) {
         const boardName = board.name.replace(/\//g, "-");
