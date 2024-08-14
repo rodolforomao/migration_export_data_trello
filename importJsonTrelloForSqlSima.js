@@ -2,58 +2,31 @@ const fs = require('fs');
 const sql = require('mssql');
 const path = require('path');
 const colornames = require('colornames');
+const { desktopsChange, optionsSqlServerDelete, executeFuntions } = require('./config.js');
 require('dotenv').config();
 
-// Configurações de conexão com o banco de dados SQL Server
+const desktopIdChange = desktopsChange();
+const optionExecuteSql = optionsSqlServerDelete();
+const optionsFunctions = executeFuntions();
+
+
+// Função para escrever logs 
+function log(message) {
+    fs.appendFileSync('importSqlSima_logs.txt', message + '\n', 'utf8');
+}
+
 const config = {
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     server: process.env.DB_SERVER,
     database: process.env.DB_DATABASE_NAME,
     options: {
-        encrypt: true, // Se você estiver usando Azure SQL, defina como true
-        trustServerCertificate: true // Se você estiver usando Azure SQL, defina como true
+        encrypt: true,
+        trustServerCertificate: true
     }
 };
 
-const desktopIdChange = [
-    'CGMRR',
-    'CGMRR - CENTRO-OESTE',
-    'CGMRR - NORDESTE',
-    'CGMRR - NORTE',
-    'CGMRR - SUDESTE',
-    'CGMRR - SUL',
-    'COMEC'
-];
-
-// Função para verificar se o trelloIdProject já existe no banco de dados
-async function checkIfTrelloIdExists(trelloId, pool) {
-    try {
-        const result = await pool.request()
-            .input('trelloId', sql.VarChar, trelloId)
-            .query('SELECT COUNT(*) AS count FROM Desktop WHERE trelloIdProject = @trelloId');
-        return result.recordset[0].count > 0;
-    } catch (error) {
-        console.log('Ocorreu um erro ao verificar se o trelloIdProject existe:');
-        return false;
-    }
-}
-
-// Função para verificar se o trelloIdCard já existe no banco de dados
-async function checkIfTrelloIdCardExists(trelloId, pool) {
-    try {
-        const result = await pool.request()
-            .input('trelloId', sql.VarChar, trelloId)
-            .query('SELECT COUNT(*) AS count FROM Project WHERE trelloIdCard = @trelloId');
-        return result.recordset[0].count > 0;
-    } catch (error) {
-        console.log('Ocorreu um erro ao verificar se o trelloIdCard existe:');
-        return false;
-    }
-}
-
-// Função para ler e inserir os dados do arquivo organization.json no banco de dados
-async function insertOrganizationData(directoryPath, pool) {
+async function insertDesktop(directoryPath, pool) {
     try {
         const filePath = path.join(directoryPath, 'organization.json');
 
@@ -65,8 +38,9 @@ async function insertOrganizationData(directoryPath, pool) {
 
             // Verifica se o trelloIdProject já existe no banco de dados
             const trelloIdExists = await checkIfTrelloIdExists(data.id, pool);
+
             if (trelloIdExists) {
-                console.log(`O Desktop já existe no banco de dados. Continuando o processo.`);
+                log(`O Desktop já existe no banco de dados. Continuando o processo.`);
             } else {
                 // Insere os dados na tabela Desktop
                 await pool.request().query(`
@@ -74,16 +48,38 @@ async function insertOrganizationData(directoryPath, pool) {
                     VALUES ('${data.displayName}', '${data.id}', GETDATE(), 1);
                 `);
 
-                console.log(`Dados do arquivo ${filePath} inseridos com sucesso.`);
+                log(`Dados do arquivo ${filePath} inseridos com sucesso.`);
+
+                // Validação pós-inserção
+                const isInserted = await checkIfTrelloIdExists(data.id, pool);
+                if (isInserted) {
+                    log(`Validação: O Desktop foi inserido com sucesso no banco de dados.`);
+                } else {
+                    log(`Validação falhou: O Desktop não foi encontrado no banco de dados.`);
+                }
             }
 
             // Executa o processo para a tabela Project
             await insertProjectData(directoryPath, data.id, pool);
         } else {
-            console.log(`O caminho ${filePath} não aponta para um arquivo. Pulando para o próximo.`);
+            log(`O caminho ${filePath} não aponta para um arquivo. Pulando para o próximo.`);
         }
     } catch (error) {
-        console.log(`Ocorreu um erro ao inserir dados do arquivo organization.json:`);
+        log(`Ocorreu um erro ao inserir dados do arquivo organization.json: ${error.message}`);
+    }
+}
+
+// Função para verificar se o trelloId já existe no banco de dados
+async function checkIfTrelloIdExists(trelloId, pool) {
+    try {
+        const result = await pool.request()
+            .input('trelloId', sql.NVarChar, trelloId)
+            .query('SELECT COUNT(*) AS Count FROM Desktop WHERE trelloIdProject = @trelloId');
+
+        return result.recordset[0].Count > 0;
+    } catch (error) {
+        log(`Erro ao verificar existência do trelloId no banco de dados: ${error.message}`);
+        return false;
     }
 }
 
@@ -95,7 +91,8 @@ async function insertProjectData(directoryPath, pool) {
 
         // Verifica se o arquivo existe
         if (!fs.existsSync(filePath)) {
-            console.log(`O arquivo ${filePath} não foi encontrado.`);
+            log(`O arquivo ${filePath} não foi encontrado.`);
+            return;
         }
 
         // Lê o arquivo JSON
@@ -106,7 +103,7 @@ async function insertProjectData(directoryPath, pool) {
         // Verifica se o trelloIdCard já existe no banco de dados
         const trelloIdCardExists = await checkIfTrelloIdCardExists(data.id, pool);
         if (trelloIdCardExists) {
-            console.log(`O Project já existe no banco de dados. Continuando o processo.`);
+            log(`O Project já existe no banco de dados. Continuando o processo.`);
 
             // Executa a função para inserir dados da lista
             await insertListData(directoryPath, data.id, pool);
@@ -114,16 +111,44 @@ async function insertProjectData(directoryPath, pool) {
             // Insere os dados na tabela Project
             await pool.request().query(`
                 INSERT INTO Project (name, createdAt, updatedAt, userId, desktopId, trelloIdCard) 
-                VALUES ('${data.name}', GETDATE(), GETDATE(), 1, (
-                    SELECT id FROM Desktop WHERE trelloIdProject = '${trelloIdOrganization}'
-                ), '${data.id}')
+                VALUES (
+                    '${data.name}', 
+                    GETDATE(), 
+                    GETDATE(), 
+                    1, 
+                    (
+                        SELECT id FROM Desktop WHERE trelloIdProject = '${trelloIdOrganization}'
+                    ), 
+                    '${data.id}'
+                )
             `);
 
-            console.log(`Dados do arquivo inseridos com sucesso.`);
+            log(`Dados do arquivo ${filePath} inseridos com sucesso.`);
 
+            // Validação pós-inserção
+            const isInserted = await checkIfTrelloIdCardExists(data.id, pool);
+            if (isInserted) {
+                log(`Validação: O Project foi inserido com sucesso no banco de dados.`);
+            } else {
+                log(`Validação falhou: O Project não foi encontrado no banco de dados.`);
+            }
         }
     } catch (error) {
-        console.log(`Ocorreu um erro ao inserir dados do arquivo board.json:`);
+        log(`Ocorreu um erro ao inserir dados do arquivo board.json: ${error.message}`);
+    }
+}
+
+// Função para verificar se o trelloIdCard já existe no banco de dados
+async function checkIfTrelloIdCardExists(trelloId, pool) {
+    try {
+        const result = await pool.request()
+            .input('trelloId', sql.NVarChar, trelloId)
+            .query('SELECT COUNT(*) AS Count FROM Project WHERE trelloIdCard = @trelloId');
+
+        return result.recordset[0].Count > 0;
+    } catch (error) {
+        log(`Erro ao verificar existência do trelloId no banco de dados: ${error.message}`);
+        return false;
     }
 }
 
@@ -134,57 +159,75 @@ async function insertListData(directoryPath, pool) {
 
         // Verifica se o arquivo existe
         if (!fs.existsSync(filePath)) {
-            console.log(`O arquivo ${filePath} não foi encontrado.`);
+            log(`O arquivo ${filePath} não foi encontrado.`);
+            return;
         }
 
         // Lê o arquivo JSON
         const rawData = fs.readFileSync(filePath);
         const data = JSON.parse(rawData);
 
-        // Insere os dados na tabela List
-        const request = pool.request();
-        request.input('name', sql.NVarChar, data.name);
-        request.input('projectId', sql.NVarChar, data.idBoard);
-        request.input('trelloIdList', sql.NVarChar, data.id);
-
-        const result = await pool.request()
-            .input('trelloId', sql.VarChar, data.id)
-            .query('SELECT COUNT(*) AS count FROM List WHERE trelloIdList = @trelloId');
-
-        if (result.recordset[0].count <= 0) {
+        // Verifica se a lista já existe no banco de dados
+        const trelloIdListExists = await checkIfTrelloIdListExists(data.id, pool);
+        if (trelloIdListExists) {
+            log(`A List já existe no banco de dados. Continuando o processo.`);
+        } else {
+            // Insere os dados na tabela List
+            const request = pool.request();
+            request.input('name', sql.NVarChar, data.name);
+            request.input('projectId', sql.NVarChar, data.idBoard);
+            request.input('trelloIdList', sql.NVarChar, data.id);
 
             const query = `
-        INSERT INTO List (name, [order], createdAt, updatedAt, projectId, trelloIdList, desktopId)
-        VALUES (
-            @name, 
-            (SELECT ISNULL(MAX([order]), 0) + 1 FROM List WHERE projectId = (SELECT id FROM Project WHERE trelloIdCard = @projectId)),
-            GETDATE(), 
-            GETDATE(), 
-            (SELECT id FROM Project WHERE trelloIdCard = @projectId), 
-            @trelloIdList,
-            (SELECT desktopId FROM Project WHERE trelloIdCard = @projectId)
-        )
-        
-        `;
+                INSERT INTO List (name, [order], createdAt, updatedAt, projectId, trelloIdList, desktopId)
+                VALUES (
+                    @name, 
+                    (SELECT ISNULL(MAX([order]), 0) + 1 FROM List WHERE projectId = (SELECT id FROM Project WHERE trelloIdCard = @projectId)),
+                    GETDATE(), 
+                    GETDATE(), 
+                    (SELECT id FROM Project WHERE trelloIdCard = @projectId), 
+                    @trelloIdList,
+                    (SELECT desktopId FROM Project WHERE trelloIdCard = @projectId)
+                )
+            `;
 
             await request.query(query);
-            console.log(`A List  já existe no banco de dados. Continuando o processo.`);
-        } else {
-            console.log(`Dados do arquivo ja existe.`);
+            log(`Dados do arquivo ${filePath} inseridos com sucesso.`);
 
+            // Validação pós-inserção
+            const isInserted = await checkIfTrelloIdListExists(data.id, pool);
+            if (isInserted) {
+                log(`Validação: A List foi inserida com sucesso no banco de dados.`);
+            } else {
+                log(`Validação falhou: A List não foi encontrada no banco de dados.`);
+            }
         }
-
     } catch (error) {
-        console.log(`Ocorreu um erro ao inserir dados do arquivo list.json:`);
+        log(`Ocorreu um erro ao inserir dados do arquivo list.json: ${error.message}`);
     }
 }
+
+// Função para verificar se o trelloIdList já existe no banco de dados
+async function checkIfTrelloIdListExists(trelloId, pool) {
+    try {
+        const result = await pool.request()
+            .input('trelloId', sql.NVarChar, trelloId)
+            .query('SELECT COUNT(*) AS Count FROM List WHERE trelloIdList = @trelloId');
+
+        return result.recordset[0].Count > 0;
+    } catch (error) {
+        log(`Erro ao verificar existência do trelloId no banco de dados: ${error.message}`);
+        return false;
+    }
+}
+
 async function processCardFile(cardFilePath, pool) {
     try {
         const filePath = path.join(cardFilePath, 'card.json');
 
         // Verifica se o arquivo existe
         if (!fs.existsSync(filePath)) {
-            console.log(`O arquivo ${filePath} não foi encontrado.`);
+            log(`O arquivo ${filePath} não foi encontrado.`);
             return;
         }
 
@@ -227,27 +270,59 @@ async function processCardFile(cardFilePath, pool) {
         )
         `;
         await request.query(query);
-        console.log(`O Issue foi inserido com sucesso. Continuando o processo.`);
 
-        // Chama a função processCardLabels para processar os labels
-        await processCardLabels(data, pool);
+        // Valida se o Issue foi inserido com sucesso
+        const checkQuery = `
+            SELECT COUNT(*) AS count FROM Issue WHERE trelloIdIssue = @trelloIdIssue
+        `;
+        const result = await request.query(checkQuery);
+        const insertedCount = result.recordset[0].count;
 
-        // Chama a função processCardChecklists para processar os checklists
-        await processCardChecklists(data, pool);
+        if (insertedCount > 0) {
+            log(`O Issue foi inserido com sucesso. Continuando o processo.`);
+            // Função para inserir checklists e badges
+            if (optionsFunctions.processBagde) {
+                await processBagde(data, pool);
+            }
+            await processCheckList(data, pool);
+        } else {
+            log(`Falha ao inserir o Issue.`);
+        }
 
     } catch (error) {
-        console.log(`Ocorreu um erro ao inserir dados do arquivo card.json:`, error);
+        log(`Ocorreu um erro ao inserir dados do arquivo card.json:`, error);
     }
 }
 
-async function processCardLabels(cardData, pool) {
+
+async function processBagde(cardData, pool) {
     const transaction = pool.transaction();
 
     try {
         await transaction.begin();
 
         const labels = cardData.labels;
-        const trelloIdIssue = cardData.id;
+        const trelloIdIssue = String(cardData.id); // Certificando-se de que é uma string válida
+
+        // Verificação do valor de trelloIdIssue antes de usá-lo na consulta
+        if (!trelloIdIssue) {
+            throw new Error('Invalid trelloIdIssue: The value is undefined, null, or an empty string');
+        }
+
+        // Verificar se o Issue existe e obter o projectId associado
+        const issueQuery = `
+            SELECT id, projectId FROM Issue WHERE trelloIdIssue = @issueId
+        `;
+        const issueResult = await transaction.request()
+            .input('issueId', sql.NVarChar, trelloIdIssue)
+            .query(issueQuery);
+
+        if (issueResult.recordset.length === 0) {
+            throw new Error('Issue não encontrado na tabela Issue');
+        }
+
+        const issueId = issueResult.recordset[0].id;
+        const projectId = issueResult.recordset[0].projectId;
 
         for (let label of labels) {
             const colorHex = getColorHex(label.color);
@@ -256,8 +331,8 @@ async function processCardLabels(cardData, pool) {
             const request = transaction.request();
             request.input('nameTag', sql.NVarChar, label.name);
             request.input('color', sql.NVarChar, colorHex);
-            request.input('projectId', sql.Int, 110); // Ajuste conforme sua lógica
-            request.input('userId', sql.Int, 1);    // Ajuste conforme sua lógica
+            request.input('projectId', sql.Int, projectId);
+            request.input('userId', sql.Int, 1);
 
             const insertBadgeQuery = `
                 INSERT INTO Badge (projectId, color, nameTag, userId, createdAt, updatedAt)
@@ -267,26 +342,6 @@ async function processCardLabels(cardData, pool) {
 
             const result = await request.query(insertBadgeQuery);
             const badgeId = result.recordset[0].id;
-
-            const trelloIdIssue = String(cardData.id); // Certificando-se de que é uma string válida
-
-            // Verificação do valor de trelloIdIssue antes de usá-lo na consulta
-            if (!trelloIdIssue) {
-                throw new Error('Invalid trelloIdIssue: The value is undefined, null, or an empty string');
-            }
-
-            const issueQuery = `
-                SELECT id FROM Issue WHERE trelloIdIssue = @issueId
-            `;
-            const issueResult = await transaction.request()
-                .input('issueId', sql.NVarChar, trelloIdIssue) // Passando como string
-                .query(issueQuery);
-
-            if (issueResult.recordset.length === 0) {
-                throw new Error('Issue não encontrado na tabela Issue');
-            }
-
-            const issueId = issueResult.recordset[0].id;
 
             // Inserir o relacionamento na tabela IssueBadges
             const issueBadgesRequest = transaction.request();
@@ -302,7 +357,7 @@ async function processCardLabels(cardData, pool) {
         }
 
         await transaction.commit();
-        console.log('Labels processados e inseridos com sucesso.');
+        log('Labels processados e inseridos com sucesso.');
 
     } catch (error) {
         await transaction.rollback();
@@ -310,14 +365,19 @@ async function processCardLabels(cardData, pool) {
     }
 }
 
+// Função para converter nomes de cores em hex
+function getColorHex(colorName) {
+    return colornames(colorName) || '#000000'; // Retorna preto por padrão se a cor não for encontrada
+}
+
+
 
 // Função para substituir aspas simples por aspas duplas
 function replaceQuotes(text) {
     return text.replace(/'/g, "''");
 }
 
-// Função para processar e salvar os checklists e itens
-async function processCardChecklists(cardData, pool) {
+async function processCheckList(cardData, pool) {
     const transaction = pool.transaction();
 
     try {
@@ -349,6 +409,12 @@ async function processCardChecklists(cardData, pool) {
             // Recupera o checklist do Trello
             const checklist = await getChecklist(checklistId);
 
+            // Verifica se o checklist foi recuperado com sucesso
+            if (!checklist || !checklist.name) {
+                log(`Checklist com ID ${checklistId} não foi encontrado ou está incompleto.`);
+                continue; // Passa para o próximo checklist
+            }
+
             // Inserir o checklist na tabela Checklist
             const checklistRequest = transaction.request();
             checklistRequest.input('issueId', sql.Int, issueId);
@@ -363,6 +429,12 @@ async function processCardChecklists(cardData, pool) {
 
             const checklistResult = await checklistRequest.query(insertChecklistQuery);
             const checklistID = checklistResult.recordset[0].checklistID; // Captura o ID do checklist inserido
+
+            // Verifica se o checklist foi inserido corretamente
+            if (!checklistID) {
+                log(`Falha ao inserir checklist ${checklist.name}.`);
+                continue; // Passa para o próximo checklist
+            }
 
             // Inserir os itens do checklist na tabela ChecklistItems
             for (let item of checklist.checkItems) {
@@ -379,14 +451,18 @@ async function processCardChecklists(cardData, pool) {
                 `;
 
                 const itemResult = await checklistItemRequest.query(insertChecklistItemQuery);
-                const checklistItemID = itemResult.recordset[0].checklistItemID; // Captura o ID do item inserido
+                const checklistItemID = itemResult.recordset[0].checklistItemID;
 
-                // Se precisar usar o checklistItemID para algo mais, você pode fazê-lo aqui
+                if (checklistItemID) {
+                    log(`Item do checklist inserido com sucesso: ${item.name}`);
+                } else {
+                    log(`Falha ao inserir item do checklist: ${item.name}`);
+                }
             }
         }
 
         await transaction.commit();
-        console.log('Checklists e itens processados e inseridos com sucesso.');
+        log('Checklists e itens processados e inseridos com sucesso.');
 
     } catch (error) {
         await transaction.rollback();
@@ -396,9 +472,17 @@ async function processCardChecklists(cardData, pool) {
 
 // Função para recuperar o checklist do Trello
 async function getChecklist(id) {
-    const response = await fetch(`https://api.trello.com/1/checklists/${id}?key=${process.env.API_KEY}&token=${process.env.API_TOKEN}`);
-    const data = await response.json();
-    return data;
+    try {
+        const response = await fetch(`https://api.trello.com/1/checklists/${id}?key=${process.env.API_KEY}&token=${process.env.API_TOKEN}`);
+        if (!response.ok) {
+            throw new Error(`Erro ao buscar checklist do Trello: ${response.statusText}`);
+        }
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error(`Erro ao recuperar checklist do Trello:`, error);
+        return null;
+    }
 }
 
 function replaceQuotes(text) {
@@ -412,15 +496,16 @@ function getColorHex(colorName) {
     return colornames(colorName) || '#000000'; // Retorna preto por padrão se a cor não for encontrada
 }
 
-// Função para ler e inserir os dados do arquivo actions.json no banco de dados
-async function processActionsFile(actionsFilePath, pool) {
-    try {
 
+// Função para inserir Comentarios
+async function processComment(actionsFilePath, pool) {
+    try {
         const filePath = path.join(actionsFilePath, 'actions.json');
 
         // Verifica se o arquivo existe
         if (!fs.existsSync(filePath)) {
-            console.log(`O arquivo ${filePath} não foi encontrado.`);
+            log(`O arquivo ${filePath} não foi encontrado.`);
+            return;
         }
 
         // Lê o arquivo JSON
@@ -505,7 +590,7 @@ async function processActionsFile(actionsFilePath, pool) {
 
                     // Confirma a transação
                     await transaction.commit();
-                    console.log('Dados do arquivo Comment inseridos na tabela Comment com sucesso.');
+                    log('Dados do arquivo Comment inseridos na tabela Comment com sucesso.');
                 } catch (err) {
                     // Desfaz a transação em caso de erro
                     await transaction.rollback();
@@ -514,137 +599,150 @@ async function processActionsFile(actionsFilePath, pool) {
             }
         }
     } catch (error) {
-        console.log(`Ocorreu um erro ao inserir dados do arquivo actions.json:`); //aqui
+        log(`Ocorreu um erro ao inserir dados do arquivo actions.json:`, error);
     }
 }
 
-// Função principal para conectar ao banco de dados e processar os diretórios
-async function main() {
-    const start = Date.now();  // Início do tempo de execução
-
+async function executeSqlServerInsert() {
+    let pool;
     try {
         // Conecta ao banco de dados
-        const pool = await sql.connect(config);
-
+        pool = await sql.connect(config);
         const desktopsString = desktopIdChange.map(name => `'${name}'`).join(',');
 
-        await pool.request()
-            .query(`
-           -- Delete from Accompanied
-           DELETE A
-           FROM Accompanied A
-           INNER JOIN Issue I ON I.id = A.issueId
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})
+        if (optionExecuteSql.executeOnDelete) {
+            log('Iniciando exclusão de dados antigos...');
 
-           -- Delete from Badges
-           DELETE IB
-           FROM [IssueBadges] IB
-           INNER JOIN Issue I ON I.id = IB.issueId
-           INNER JOIN Badge B ON I.id = IB.badgeId
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})
+            await pool.request().query(`
+                -- Delete from Accompanied (tabela dependente)
+                DELETE A
+                FROM Accompanied A
+                INNER JOIN Issue I ON I.id = A.issueId
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
 
-		   DELETE B
-           FROM Badge B
-           INNER JOIN [IssueBadges] IB ON B.id = IB.badgeId
-           INNER JOIN Issue I ON I.id = IB.issueId
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})
+                -- Delete from Notification (tabela dependente)
+                DELETE N
+                FROM Notification N
+                INNER JOIN Issue I ON I.id = N.issueId
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
 
-           -- Delete from Notification
-           DELETE N
-           FROM Notification N
-           INNER JOIN Issue I ON I.id = N.issueId
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})
+                -- Delete from LinkedCard (tabela dependente)
+                DELETE LC
+                FROM LinkedCard LC
+                INNER JOIN Issue I ON I.id = LC.parentIdIssueId
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
 
-           -- Delete from LinkedCard
-           DELETE LC
-           FROM LinkedCard LC
-           INNER JOIN Issue I ON I.id = LC.parentIdIssueId
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})
+                -- Delete from ReviewTask (tabela dependente)
+                DELETE RT
+                FROM ReviewTask RT
+                INNER JOIN Issue I ON I.id = RT.issueId
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
 
-           -- Delete from ReviewTask
-           DELETE RT
-           FROM ReviewTask RT
-           INNER JOIN Issue I ON I.id = RT.issueId
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})
+                -- Delete from Comment (tabela dependente)
+                DELETE C
+                FROM Comment C
+                INNER JOIN Issue I ON I.id = C.issueId
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
 
-           -- Delete from Comment
-           DELETE C
-           FROM Comment C
-           INNER JOIN Issue I ON I.id = C.issueId
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})
+                -- Delete from Assignee (tabela dependente)
+                DELETE A
+                FROM Assignee A
+                INNER JOIN Issue I ON I.id = A.issueId
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
 
-           -- Delete from Assignee
-           DELETE A
-           FROM Assignee A
-           INNER JOIN Issue I ON I.id = A.issueId
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})
+                -- Delete from HistoryMovimentList (tabela dependente)
+                DELETE HML
+                FROM HistoryMovimentList HML
+                INNER JOIN Issue I ON I.id = HML.issueId
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
 
-           -- Delete from HistoryMovimentList
-           DELETE HML
-           FROM HistoryMovimentList HML
-           INNER JOIN Issue I ON I.id = HML.issueId
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})           
+                -- Delete from Issue (tabela referenciada)
+                DELETE I
+                FROM Issue I
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
 
-           -- Delete from Issue
-           DELETE FROM Issue I
-           INNER JOIN Desktop D ON D.id = I.desktopId
-           WHERE D.nameDesktop (${desktopsString})`
-        
-        );
+                -- Delete from Badge (tabela referenciada indiretamente)
+                DELETE B
+                FROM Badge B
+                INNER JOIN [IssueBadges] IB ON B.id = IB.badgeId
+                INNER JOIN Issue I ON I.id = IB.issueId
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
+
+                -- Delete from IssueBadges (tabela dependente indireta)
+                DELETE IB
+                FROM [IssueBadges] IB
+                INNER JOIN Issue I ON I.id = IB.issueId
+                INNER JOIN Desktop D ON D.id = I.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
+            `);
+
+            log('Exclusão de dados antigos concluída.');
+        }
 
         // Caminho raiz onde estão as pastas
         const rootDirectory = path.resolve(__dirname, 'trelloRestore');
+        log(`Iniciando o processamento dos diretórios a partir de: ${rootDirectory}`);
 
         // Processa os diretórios principais sequencialmente
         await processDirectories(rootDirectory, pool);
-        console.log(rootDirectory);
 
-        const end = Date.now();  // Fim do tempo de execução
-        const executionTime = (end - start) / 1000;  // Tempo de execução em segundos
-        console.log(`TAREFA MIGRATION TRELLO CONCLUIDA! Tempo total de execução: ${executionTime} segundos`);
 
-        // Fecha a conexão com o banco de dados
-        await pool.close();
     } catch (error) {
-        console.log(`Ocorreu um erro durante o processamento:`);
+        log(`Ocorreu um erro durante o processamento de inserir no banco de dados: ${error.message}`);
+    } finally {
+        if (pool) {
+            await pool.close();
+            log('Conexão com o banco de dados fechada.');
+        }
     }
 }
 
-// Função para percorrer os subdiretórios e processar os arquivos list.json
+// Função para percorrer os subdiretórios e processar os arquivos JSON
 async function processDirectories(directoryPath, pool) {
     try {
+        const start = Date.now();  // Início do tempo de execução
+
         const items = fs.readdirSync(directoryPath);
+
+        // Definir caminhos para arquivos JSON esperados
         const organizationFile = path.join(directoryPath, 'organization.json');
         const boardFile = path.join(directoryPath, 'board.json');
         const listFile = path.join(directoryPath, 'list.json');
         const cardFile = path.join(directoryPath, 'card.json');
         const actionsFile = path.join(directoryPath, 'actions.json');
 
+        // Processar arquivos JSON se existirem
         if (fs.existsSync(organizationFile)) {
-            await insertOrganizationData(directoryPath, pool);
+            log(`Processando arquivo organization.json em: ${directoryPath}`);
+            await insertDesktop(directoryPath, pool);
         }
         if (fs.existsSync(boardFile)) {
+            log(`Processando arquivo board.json em: ${directoryPath}`);
             await insertProjectData(directoryPath, pool);
         }
         if (fs.existsSync(listFile)) {
+            log(`Processando arquivo list.json em: ${directoryPath}`);
             await insertListData(directoryPath, pool);
         }
         if (fs.existsSync(cardFile)) {
+            log(`Processando arquivo card.json em: ${directoryPath}`);
             await processCardFile(directoryPath, pool);
         }
         if (fs.existsSync(actionsFile)) {
-            await processActionsFile(directoryPath, pool);
+            log(`Processando arquivo actions.json em: ${directoryPath}`);
+            await processComment(directoryPath, pool);
         }
 
+        // Processar subdiretórios recursivamente
         for (const item of items) {
             const itemPath = path.join(directoryPath, item);
             const stats = fs.statSync(itemPath);
@@ -653,9 +751,17 @@ async function processDirectories(directoryPath, pool) {
                 await processDirectories(itemPath, pool);
             }
         }
+
+        const end = Date.now();  // Fim do tempo de execução
+        const executionTimeInSeconds = (end - start) / 1000;
+        const minutes = Math.floor(executionTimeInSeconds / 60);
+        const seconds = Math.floor(executionTimeInSeconds % 60);
+
+        log(`Inserção de dados no banco CONCLUÍDA! Tempo total de execução: ${minutes} minutos e ${seconds} segundos`);
     } catch (error) {
-        console.log(`Ocorreu um erro ao processar os diretórios em ${directoryPath}:`);
+        log(`Ocorreu um erro ao processar os diretórios em ${directoryPath}: ${error.message}`);
     }
 }
 
-module.exports = { main };
+
+module.exports = { executeSqlServerInsert };

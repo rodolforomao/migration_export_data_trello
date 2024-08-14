@@ -4,3 +4,5 @@ config/*
 .vscode/*
 .env
 trelloRestore/*
+config.js
+.gitignore

@@ -3,13 +3,32 @@ Utilização
 executar o comando: 
 node app.js
 
-na linha 24 é possivel escolhar a area de trabalho
-        organizations.forEach(org => {
-            if (org.displayName === 'CGPERT') { // Substitua 'CGCONT' pelo displayName que você está procurando
-                foundOrganizations.push(org);
-            }
-        });
-		
+// Define quais areas de trabalho serão recuperadas do trello
+function desktopsChange() {
+    const desktopChangeName = [
+        'COMEC'
+    ];
+    return desktopChangeName;
+}
+
+// Define quais quadros serão recuperadas do trello
+function boardsChange() {
+    const boardsChangeName = [
+        'COMEC'
+    ];
+    return boardsChangeName;
+}
+
+// Define quais informações adicionais serão recuperadas do trello
+function executeFuntions() {
+    const optionsFunctions = {
+        processComment: true,
+        processBagde: true,
+        processCheckList: true,
+        processAttachmentsTrello: true
+    };
+    return optionsFunctions;
+}
 		
 		
 Arquivo migrateSimaTrello.js
