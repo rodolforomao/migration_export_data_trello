@@ -59,8 +59,6 @@ async function insertDesktop(directoryPath, pool) {
                 }
             }
 
-            // Executa o processo para a tabela Project
-            await insertProjectData(directoryPath, data.id, pool);
         } else {
             log(`O caminho ${filePath} não aponta para um arquivo. Pulando para o próximo.`);
         }
@@ -105,8 +103,6 @@ async function insertProjectData(directoryPath, pool) {
         if (trelloIdCardExists) {
             log(`O Project já existe no banco de dados. Continuando o processo.`);
 
-            // Executa a função para inserir dados da lista
-            await insertListData(directoryPath, data.id, pool);
         } else {
             // Insere os dados na tabela Project
             await pool.request().query(`
@@ -153,16 +149,15 @@ async function checkIfTrelloIdCardExists(trelloId, pool) {
 }
 
 // Função para ler e inserir os dados do arquivo list.json no banco de dados
-async function insertListData(directoryPath, pool) {
+async function insertListData(cardFilePath, pool) {
     try {
-        const filePath = path.join(directoryPath, 'list.json');
+        const filePath = path.join(cardFilePath, 'list.json');
 
         // Verifica se o arquivo existe
         if (!fs.existsSync(filePath)) {
             log(`O arquivo ${filePath} não foi encontrado.`);
             return;
         }
-
         // Lê o arquivo JSON
         const rawData = fs.readFileSync(filePath);
         const data = JSON.parse(rawData);
@@ -177,12 +172,13 @@ async function insertListData(directoryPath, pool) {
             request.input('name', sql.NVarChar, data.name);
             request.input('projectId', sql.NVarChar, data.idBoard);
             request.input('trelloIdList', sql.NVarChar, data.id);
+            request.input('order', sql.Int, data.pos || 0); // Utiliza a ordem vinda do Trello
 
             const query = `
                 INSERT INTO List (name, [order], createdAt, updatedAt, projectId, trelloIdList, desktopId)
                 VALUES (
                     @name, 
-                    (SELECT ISNULL(MAX([order]), 0) + 1 FROM List WHERE projectId = (SELECT id FROM Project WHERE trelloIdCard = @projectId)),
+                    @order,
                     GETDATE(), 
                     GETDATE(), 
                     (SELECT id FROM Project WHERE trelloIdCard = @projectId), 
@@ -199,11 +195,11 @@ async function insertListData(directoryPath, pool) {
             if (isInserted) {
                 log(`Validação: A List foi inserida com sucesso no banco de dados.`);
             } else {
-                log(`Validação falhou: A List não foi encontrada no banco de dados.`);
+                log(`Validação falhou: A List não foi encontrada no banco de dados.`)
             }
         }
     } catch (error) {
-        log(`Ocorreu um erro ao inserir dados do arquivo list.json: ${error.message}`);
+        log(`Ocorreu um erro ao inserir dados do arquivo list.json: ${error.message}\nStack trace: ${error.stack}`);
     }
 }
 
@@ -614,62 +610,68 @@ async function executeSqlServerInsert() {
             log('Iniciando exclusão de dados antigos...');
 
             await pool.request().query(`
-                -- Delete from Accompanied (tabela dependente)
+                -- Delete from Accompanied 
                 DELETE A
                 FROM Accompanied A
                 INNER JOIN Issue I ON I.id = A.issueId
                 INNER JOIN Desktop D ON D.id = I.desktopId
                 WHERE D.nameDesktop IN (${desktopsString})
 
-                -- Delete from Notification (tabela dependente)
+                -- Delete from Notification 
                 DELETE N
                 FROM Notification N
                 INNER JOIN Issue I ON I.id = N.issueId
                 INNER JOIN Desktop D ON D.id = I.desktopId
                 WHERE D.nameDesktop IN (${desktopsString})
 
-                -- Delete from LinkedCard (tabela dependente)
+                -- Delete from LinkedCard 
                 DELETE LC
                 FROM LinkedCard LC
                 INNER JOIN Issue I ON I.id = LC.parentIdIssueId
                 INNER JOIN Desktop D ON D.id = I.desktopId
                 WHERE D.nameDesktop IN (${desktopsString})
 
-                -- Delete from ReviewTask (tabela dependente)
+                -- Delete from ReviewTask 
                 DELETE RT
                 FROM ReviewTask RT
                 INNER JOIN Issue I ON I.id = RT.issueId
                 INNER JOIN Desktop D ON D.id = I.desktopId
                 WHERE D.nameDesktop IN (${desktopsString})
 
-                -- Delete from Comment (tabela dependente)
+                -- Delete from Comment 
                 DELETE C
                 FROM Comment C
                 INNER JOIN Issue I ON I.id = C.issueId
                 INNER JOIN Desktop D ON D.id = I.desktopId
                 WHERE D.nameDesktop IN (${desktopsString})
 
-                -- Delete from Assignee (tabela dependente)
+                -- Delete from Assignee 
                 DELETE A
                 FROM Assignee A
                 INNER JOIN Issue I ON I.id = A.issueId
                 INNER JOIN Desktop D ON D.id = I.desktopId
                 WHERE D.nameDesktop IN (${desktopsString})
 
-                -- Delete from HistoryMovimentList (tabela dependente)
+                -- Delete from HistoryMovimentList 
                 DELETE HML
                 FROM HistoryMovimentList HML
                 INNER JOIN Issue I ON I.id = HML.issueId
                 INNER JOIN Desktop D ON D.id = I.desktopId
                 WHERE D.nameDesktop IN (${desktopsString})
 
-                -- Delete from Issue (tabela referenciada)
+                -- Delete from Issue 
                 DELETE I
                 FROM Issue I
                 INNER JOIN Desktop D ON D.id = I.desktopId
                 WHERE D.nameDesktop IN (${desktopsString})
 
-                -- Delete from Badge (tabela referenciada indiretamente)
+                -- Delete from List 
+                DELETE L
+                FROM List L
+                INNER JOIN Desktop D ON D.id = L.desktopId
+                WHERE D.nameDesktop IN (${desktopsString})
+
+                -- Delete from Badge 
                 DELETE B
                 FROM Badge B
                 INNER JOIN [IssueBadges] IB ON B.id = IB.badgeId
@@ -677,7 +679,7 @@ async function executeSqlServerInsert() {
                 INNER JOIN Desktop D ON D.id = I.desktopId
                 WHERE D.nameDesktop IN (${desktopsString})
 
-                -- Delete from IssueBadges (tabela dependente indireta)
+                -- Delete from IssueBadges 
                 DELETE IB
                 FROM [IssueBadges] IB
                 INNER JOIN Issue I ON I.id = IB.issueId
@@ -720,23 +722,27 @@ async function processDirectories(directoryPath, pool) {
         const cardFile = path.join(directoryPath, 'card.json');
         const actionsFile = path.join(directoryPath, 'actions.json');
 
-        // Processar arquivos JSON se existirem
+        // Processar arquivos JSON na ordem específica
         if (fs.existsSync(organizationFile)) {
             log(`Processando arquivo organization.json em: ${directoryPath}`);
             await insertDesktop(directoryPath, pool);
         }
+
         if (fs.existsSync(boardFile)) {
             log(`Processando arquivo board.json em: ${directoryPath}`);
             await insertProjectData(directoryPath, pool);
         }
+
         if (fs.existsSync(listFile)) {
             log(`Processando arquivo list.json em: ${directoryPath}`);
             await insertListData(directoryPath, pool);
         }
+
         if (fs.existsSync(cardFile)) {
             log(`Processando arquivo card.json em: ${directoryPath}`);
             await processCardFile(directoryPath, pool);
         }
+
         if (fs.existsSync(actionsFile)) {
             log(`Processando arquivo actions.json em: ${directoryPath}`);
             await processComment(directoryPath, pool);
@@ -762,6 +768,7 @@ async function processDirectories(directoryPath, pool) {
         log(`Ocorreu um erro ao processar os diretórios em ${directoryPath}: ${error.message}`);
     }
 }
+
 
 
 module.exports = { executeSqlServerInsert };
