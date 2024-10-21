@@ -22,89 +22,84 @@ async function startMigrateTrelloSima() {
 
         const start = Date.now();
 
-        if (optionsFunctions.processExecuteSqlServer === true) {
-            log("\n Chamando função para começar a inserir dados no banco ...");
-            executeSqlServerInsert();
-        } else {
-
-            // Verificação das variáveis de ambiente
-            if (!process.env.API_KEY || !process.env.API_TOKEN) {
-                throw new Error('Chave da API ou Token não fornecidos.');
-            }
-
-            log("Buscando organizações...");
-
-            const organizationsResponse = await axios.get('https://api.trello.com/1/members/me/organizations', {
-                params: {
-                    key: process.env.API_KEY,
-                    token: process.env.API_TOKEN
-                },
-                headers: {
-                    'Cookie': process.env.COOKIE || ''
-                }
-            });
-
-            const organization = organizationsResponse.data;
-
-            if (!organization || organization.length === 0) {
-                throw new Error('Nenhuma Desktop encontrada.');
-            }
-
-            log(`${organization.length} organizações encontradas.`);
-
-            const organizations = [];
-
-            organization.forEach(org => {
-                if (displayNamesProcurados.includes(org.displayName)) {
-                    organizations.push(org);
-                    log(`Desktop "${org.displayName}" adicionada para migração.`);
-                }
-            });
-
-            if (organizations.length === 0) {
-                log('Nenhuma Desktop corresponde aos critérios especificados.');
-                return;
-            }
-
-            const rootFolderPath = './trelloRestore';
-            if (!fs.existsSync(rootFolderPath)) {
-                fs.mkdirSync(rootFolderPath);
-                log(`Diretório raiz criado em: ${rootFolderPath}`);
-            } else {
-                log(`Diretório raiz já existe: ${rootFolderPath}`);
-            }
-
-            for (const org of organizations) {
-                const orgName = org.name.replace(/\//g, "-");
-                const orgPath = path.join(rootFolderPath, orgName);
-
-                if (!fs.existsSync(orgPath)) {
-                    fs.mkdirSync(orgPath);
-                    log(`Diretório da Desktop criado em: ${orgPath}`);
-                } else {
-                    log(`Diretório da Desktop "${orgName}" já existe.`);
-                    await fetchAndSaveSubFolders(org.id, orgPath);
-                    continue;
-                }
-
-                fs.writeFileSync(path.join(orgPath, 'organization.json'), JSON.stringify(org, null, 2));
-                log(`Arquivo JSON da Desktop salvo em: ${path.join(orgPath, 'organization.json')}`);
-
-                await fetchAndSaveSubFolders(org.id, orgPath);
-            }
-
-            console.log("\n Chamando função para começar a inserir dados no banco ...");
-            log("\n Chamando função para começar a inserir dados no banco ...");
-            executeSqlServerInsert();
-
-            const end = Date.now();
-            const executionTimeInSeconds = (end - start) / 1000;
-            const minutes = Math.floor(executionTimeInSeconds / 60);
-            const seconds = Math.floor(executionTimeInSeconds % 60);
-
-            console.log(`SCRIPT COMPLETO! Tempo total de execução: ${minutes} minutos e ${seconds} segundos`);
-            log(`SCRIPT COMPLETO! Tempo total de execução: ${minutes} minutos e ${seconds} segundos`);
+        // Verificação das variáveis de ambiente
+        if (!process.env.API_KEY || !process.env.API_TOKEN) {
+            throw new Error('Chave da API ou Token não fornecidos.');
         }
+
+        log("Buscando organizações...");
+
+        const organizationsResponse = await axios.get('https://api.trello.com/1/members/me/organizations', {
+            params: {
+                key: process.env.API_KEY,
+                token: process.env.API_TOKEN
+            },
+            headers: {
+                'Cookie': process.env.COOKIE || ''
+            }
+        });
+
+        const organization = organizationsResponse.data;
+
+        if (!organization || organization.length === 0) {
+            throw new Error('Nenhuma Desktop encontrada.');
+        }
+
+        log(`${organization.length} organizações encontradas.`);
+
+        const organizations = [];
+
+        organization.forEach(org => {
+            if (displayNamesProcurados.includes(org.displayName)) {
+                organizations.push(org);
+                log(`Desktop "${org.displayName}" adicionada para migração.`);
+            }
+        });
+
+        if (organizations.length === 0) {
+            log('Nenhuma Desktop corresponde aos critérios especificados.');
+            return;
+        }
+
+        const rootFolderPath = './trelloRestore';
+        if (!fs.existsSync(rootFolderPath)) {
+            fs.mkdirSync(rootFolderPath);
+            log(`Diretório raiz criado em: ${rootFolderPath}`);
+        } else {
+            log(`Diretório raiz já existe: ${rootFolderPath}`);
+        }
+
+        for (const org of organizations) {
+            const orgName = org.name.replace(/\//g, "-");
+            const orgPath = path.join(rootFolderPath, orgName);
+
+            if (!fs.existsSync(orgPath)) {
+                fs.mkdirSync(orgPath);
+                log(`Diretório da Desktop criado em: ${orgPath}`);
+            } else {
+                log(`Diretório da Desktop "${orgName}" já existe.`);
+                await fetchAndSaveSubFolders(org.id, orgPath);
+                continue;
+            }
+
+            fs.writeFileSync(path.join(orgPath, 'organization.json'), JSON.stringify(org, null, 2));
+            log(`Arquivo JSON da Desktop salvo em: ${path.join(orgPath, 'organization.json')}`);
+
+            await fetchAndSaveSubFolders(org.id, orgPath);
+        }
+
+        console.log("\n Chamando função para começar a inserir dados no banco ...");
+        log("\n Chamando função para começar a inserir dados no banco ...");
+        executeSqlServerInsert();
+
+        const end = Date.now();
+        const executionTimeInSeconds = (end - start) / 1000;
+        const minutes = Math.floor(executionTimeInSeconds / 60);
+        const seconds = Math.floor(executionTimeInSeconds % 60);
+
+        console.log(`SCRIPT COMPLETO! Tempo total de execução: ${minutes} minutos e ${seconds} segundos`);
+        log(`SCRIPT COMPLETO! Tempo total de execução: ${minutes} minutos e ${seconds} segundos`);
+
     } catch (error) {
         log('Ocorreu um erro ao buscar ou salvar as informações: ' + error.message);
     }
@@ -306,4 +301,20 @@ async function fetchAndSaveActions(cardId, cardPath) {
     }
 }
 
-startMigrateTrelloSima();
+
+
+async function startProcess() {
+    if (optionsFunctions.processExecuteSqlServer === true) {
+        log("\nChamando função para começar a inserir dados no banco...");
+        executeSqlServerInsert();
+    } else {
+        log("\nChamando função para processar antes de inserir dados no banco...");
+
+        await startMigrateTrelloSima();
+        log("\nChamando função para começar a inserir dados no banco...");
+        executeSqlServerInsert();
+    }
+
+}
+
+startProcess();
