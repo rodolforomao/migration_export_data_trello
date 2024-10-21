@@ -62,17 +62,23 @@ async function insertDesktop(directoryPath, pool) {
                 if (result.recordset.length > 0) {
                     const desktopId = result.recordset[0].id;
 
+                    // Lista de userIds que você deseja inserir
+                    const userIds = [1, 2, 176, 178];
+
                     // Insere Member no Desktop criado na tabela Member
-                    await pool.request()
-                        .input('desktopId', sql.Int, desktopId)
-                        .input('userId', sql.Int, 1) // Certifique-se de que o userId está sendo passado corretamente
-                        .query(`
-                        IF NOT EXISTS (SELECT 1 FROM Member WHERE desktopId = @desktopId AND userId = @userId)
-                        BEGIN
-                            INSERT INTO Member (createdAt, projectId, desktopId, userId) 
-                            VALUES (GETDATE(), NULL, @desktopId, @userId);
-                        END
-                    `);
+                    for (const userId of userIds) {
+                        await pool.request()
+                            .input('desktopId', sql.Int, desktopId)
+                            .input('userId', sql.Int, userId) // Passa o userId atual da iteração
+                            .query(`
+            IF NOT EXISTS (SELECT 1 FROM Member WHERE desktopId = @desktopId AND userId = @userId)
+            BEGIN
+                INSERT INTO Member (createdAt, projectId, desktopId, userId) 
+                VALUES (GETDATE(), NULL, @desktopId, @userId);
+            END
+        `);
+                    }
+
                 }
 
                 log(`SUCCESS: Validação completa. O Desktop com Trello ID: ${data.id} foi inserido com sucesso.`);
