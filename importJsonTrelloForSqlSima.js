@@ -63,7 +63,7 @@ async function insertDesktop(directoryPath, pool) {
                     const desktopId = result.recordset[0].id;
 
                     // Lista de userIds que você deseja inserir
-                    const userIds = [1, 2, 176, 178];
+                    const userIds = [1,2];
 
                     // Insere Member no Desktop criado na tabela Member
                     for (const userId of userIds) {
@@ -364,7 +364,7 @@ async function processCardFile(cardFilePath, pool) {
 
         // Query de inserção
         const query = `
-          INSERT INTO Issue ([order], priority, type, summary, descr, createdAt, updatedAt, listId, reporterId, codigoSei, endDate, trelloIdIssue, listBadge,
+          INSERT INTO Issue ([order], priority, type, summary, descr, createdAt, updatedAt, listId, reporterId,  endDate, trelloIdIssue, listBadge,
           referencePeriod, projectId, desktopId, startDate, isIssueCompleted, dateIssueCompleted)
           VALUES (
               (SELECT ISNULL(MAX([order]), 0) + 1 FROM Issue WHERE listId = (SELECT id FROM List WHERE trelloIdList = @idList)),
@@ -375,8 +375,7 @@ async function processCardFile(cardFilePath, pool) {
               GETDATE(),
               GETDATE(),
               (SELECT id FROM List WHERE trelloIdList = @idList),
-              IIF((SELECT id FROM [User] WHERE trelloIdUser = @idMembers) IS NULL, 1, (SELECT id FROM [User] WHERE trelloIdUser = @idMembers)),
-              NULL,
+              IIF((SELECT id FROM [User] WHERE trelloIdUser = @idMembers) IS NULL, 1, (SELECT id FROM [User] WHERE trelloIdUser = @idMembers)),              
               @endDate,
               @trelloIdIssue,
               NULL,
