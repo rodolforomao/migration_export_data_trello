@@ -1,6 +1,8 @@
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+
 const { executeSqlServerInsert } = require('./importJsonTrelloForSqlSima.js');
 const { desktopsChange, boardsChange, executeFuntions } = require('./config.js');
 require('dotenv').config();
@@ -14,9 +16,14 @@ function log(message) {
     fs.appendFileSync('migration_logs.txt', message + '\n', 'utf8');
 }
 
-// Função para sanitizar nomes de arquivos/pastas inválidos no Windows
-function sanitizeFileName(name) {
-    return name.replace(/[<>:"/\\|?*]/g, '-');
+// Função para sanitizar nomes de arquivos/pastas inválidos no Windows + limite de tamanho
+function sanitizeFileName(name, maxLength = 100) {
+    let clean = name.replace(/[<>:"/\\|?*]/g, '-').trim();
+    if (clean.length > maxLength) {
+        const hash = crypto.createHash('md5').update(clean).digest('hex').slice(0, 8);
+        clean = clean.substring(0, maxLength - 9) + '_' + hash;
+    }
+    return clean;
 }
 
 // Função principal de migração
@@ -27,12 +34,10 @@ async function startMigrateTrelloSima() {
 
         const start = Date.now();
 
-        // Verificação das variáveis de ambiente
         if (!process.env.API_KEY || !process.env.API_TOKEN) {
             throw new Error('Chave da API ou Token não fornecidos.');
         }
 
-        // Buscar todas as organizações do usuário
         log("Buscando organizações...");
         const { data: organizations } = await axios.get(
             'https://api.trello.com/1/members/me/organizations',
@@ -41,7 +46,6 @@ async function startMigrateTrelloSima() {
 
         const organization = [];
 
-        // Filtra apenas os desktops que você quer
         if (displayNamesProcurados.length > 0) {
             organizations.forEach(org => {
                 if (displayNamesProcurados.includes(org.displayName)) {
@@ -61,7 +65,6 @@ async function startMigrateTrelloSima() {
         const rootFolderPath = './trelloRestore';
         if (!fs.existsSync(rootFolderPath)) fs.mkdirSync(rootFolderPath);
 
-        // Processar cada organização
         for (const org of organization) {
             const orgName = sanitizeFileName(org.name);
             const orgPath = path.join(rootFolderPath, orgName);
@@ -72,10 +75,6 @@ async function startMigrateTrelloSima() {
 
             await fetchAndSaveBoards(org.id, orgPath);
         }
-
-        console.log("\nChamando função para começar a inserir dados no banco...");
-        log("\nChamando função para começar a inserir dados no banco...");
-        executeSqlServerInsert();
 
         const end = Date.now();
         const executionTimeInSeconds = (end - start) / 1000;
@@ -103,7 +102,6 @@ async function fetchAndSaveBoards(orgId, orgPath) {
             return;
         }
 
-        // Aplica o filtro
         let boardsToProcess;
         if (boardsChangeList.length > 0) {
             boardsToProcess = boards.filter(board =>
@@ -228,13 +226,11 @@ async function fetchAndSaveActions(cardId, cardPath) {
 // Função de execução
 async function startProcess() {
     if (optionsFunctions.processExecuteSqlServer === true) {
-        log("\nChamando função para começar a inserir dados no banco...");
+        log("\nExecutando insert no banco...");
         executeSqlServerInsert();
     } else {
         log("\nChamando função para processar antes de inserir dados no banco...");
         await startMigrateTrelloSima();
-        log("\nChamando função para começar a inserir dados no banco...");
-        executeSqlServerInsert();
     }
 }
 

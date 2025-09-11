@@ -2,7 +2,10 @@ const fs = require('fs');
 const sql = require('mssql');
 const path = require('path');
 const colornames = require('colornames');
+const readline = require('readline');
 const { desktopsChange, optionsSqlServerDelete, executeFuntions } = require('./config.js');
+const { testConnection } = require('./testeConnection');
+
 require('dotenv').config();
 
 const desktopIdChange = desktopsChange();
@@ -63,7 +66,7 @@ async function insertDesktop(directoryPath, pool) {
                     const desktopId = result.recordset[0].id;
 
                     // Lista de userIds que você deseja inserir
-                    const userIds = [1,2];
+                    const userIds = [1, 2];
 
                     // Insere Member no Desktop criado na tabela Member
                     for (const userId of userIds) {
@@ -811,91 +814,113 @@ async function processComment(actionsFilePath, pool) {
 
 async function executeSqlServerInsert() {
     let pool;
+    const connected = await testConnection();
+    if (!connected) {
+        console.log('Não foi possível executar o insert porque a conexão falhou.');
+        return;
+    }
+
     try {
         // Conecta ao banco de dados
         pool = await sql.connect(config);
         const desktopsString = desktopIdChange.map(name => `'${name}'`).join(',');
 
         if (optionExecuteSql.executeOnDelete) {
-
             await pool.request().query(`
-                -- Delete from Accompanied 
-                DELETE A
-                FROM Accompanied A
-                INNER JOIN Issue I ON I.id = A.issueId
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from Notification 
-                DELETE N
-                FROM Notification N
-                INNER JOIN Issue I ON I.id = N.issueId
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from LinkedCard 
-                DELETE LC
-                FROM LinkedCard LC
-                INNER JOIN Issue I ON I.id = LC.parentIdIssueId
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from ReviewTask 
-                DELETE RT
-                FROM ReviewTask RT
-                INNER JOIN Issue I ON I.id = RT.issueId
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from Comment 
-                DELETE C
-                FROM Comment C
-                INNER JOIN Issue I ON I.id = C.issueId
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from Assignee 
-                DELETE A
-                FROM Assignee A
-                INNER JOIN Issue I ON I.id = A.issueId
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from HistoryMovimentList 
-                DELETE HML
-                FROM HistoryMovimentList HML
-                INNER JOIN Issue I ON I.id = HML.issueId
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from Issue 
-                DELETE I
-                FROM Issue I
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from List 
-                DELETE L
-                FROM List L
-                INNER JOIN Desktop D ON D.id = L.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from Badge 
-                DELETE B
-                FROM Badge B
-                INNER JOIN [IssueBadges] IB ON B.id = IB.badgeId
-                INNER JOIN Issue I ON I.id = IB.issueId
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
-
-                -- Delete from IssueBadges 
-                DELETE IB
-                FROM [IssueBadges] IB
-                INNER JOIN Issue I ON I.id = IB.issueId
-                INNER JOIN Desktop D ON D.id = I.desktopId
-                WHERE D.nameDesktop IN (${desktopsString})
+                   -- 1. IssueFileSima (filha de Issue)
+                   DELETE IFS
+                   FROM IssueFileSima IFS
+                   INNER JOIN Issue I ON I.id = IFS.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   -- 2. IssueBadges
+                   DELETE IB
+                   FROM IssueBadges IB
+                   INNER JOIN Issue I ON I.id = IB.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   -- 3. Dependentes de Issue
+                   DELETE A
+                   FROM Accompanied A
+                   INNER JOIN Issue I ON I.id = A.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   DELETE N
+                   FROM Notification N
+                   INNER JOIN Issue I ON I.id = N.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   DELETE LC
+                   FROM LinkedCard LC
+                   INNER JOIN Issue I ON I.id = LC.parentIdIssueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   DELETE RT
+                   FROM ReviewTask RT
+                   INNER JOIN Issue I ON I.id = RT.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   DELETE C
+                   FROM Comment C
+                   INNER JOIN Issue I ON I.id = C.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   DELETE A
+                   FROM Assignee A
+                   INNER JOIN Issue I ON I.id = A.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   DELETE HML
+                   FROM HistoryMovimentList HML
+                   INNER JOIN Issue I ON I.id = HML.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   DELETE CL
+                   FROM Checklist CL
+                   INNER JOIN Issue I ON I.id = CL.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   -- 4. Badge (depois que IssueBadges já foi apagado)
+                   DELETE B
+                   FROM Badge B
+                   INNER JOIN IssueBadges IB ON B.id = IB.badgeId
+                   INNER JOIN Issue I ON I.id = IB.issueId
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   -- 5. Issue (depois de limpar todas as dependências)
+                   DELETE I
+                   FROM Issue I
+                   INNER JOIN Desktop D ON D.id = I.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   -- 6. List (depois que Issues já foram apagadas)
+                   DELETE L
+                   FROM List L
+                   INNER JOIN Desktop D ON D.id = L.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   -- 7. Project (depois que Lists já foram apagadas)
+                   DELETE P
+                   FROM Project P
+                   INNER JOIN Desktop D ON D.id = P.desktopId
+                   WHERE D.nameDesktop IN (${desktopsString});
+                   
+                   -- 8. Desktop (último nível)
+                   DELETE D
+                   FROM Desktop D
+                   WHERE D.nameDesktop IN (${desktopsString});
             `);
-
         }
 
         // Caminho raiz onde estão as pastas
@@ -986,7 +1011,6 @@ async function processDirectories(directoryPath, pool) {
         throw new Error(errorMessage);
     }
 }
-
 
 
 module.exports = { executeSqlServerInsert };
