@@ -18,7 +18,11 @@ function log(message) {
 
 // Função para sanitizar nomes de arquivos/pastas inválidos no Windows + limite de tamanho
 function sanitizeFileName(name, maxLength = 100) {
-    let clean = name.replace(/[<>:"/\\|?*]/g, '-').trim();
+    let clean = name
+        .replace(/[<>:"/\\|?*]/g, '-')          // caracteres inválidos
+        .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '') // remove emojis
+        .trim();
+
     if (clean.length > maxLength) {
         const hash = crypto.createHash('md5').update(clean).digest('hex').slice(0, 8);
         clean = clean.substring(0, maxLength - 9) + '_' + hash;
