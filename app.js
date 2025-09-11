@@ -26,6 +26,16 @@ function sanitizeFileName(name, maxLength = 100) {
     return clean;
 }
 
+// Função segura para criar pastas
+function createFolder(folderPath) {
+    try {
+        fs.mkdirSync(folderPath, { recursive: true });
+    } catch (error) {
+        log(`Erro ao criar a pasta "${folderPath}": ${error.message}`);
+        throw error;
+    }
+}
+
 // Função principal de migração
 async function startMigrateTrelloSima() {
     try {
@@ -63,12 +73,12 @@ async function startMigrateTrelloSima() {
         }
 
         const rootFolderPath = './trelloRestore';
-        if (!fs.existsSync(rootFolderPath)) fs.mkdirSync(rootFolderPath);
+        createFolder(rootFolderPath);
 
         for (const org of organization) {
             const orgName = sanitizeFileName(org.name);
             const orgPath = path.join(rootFolderPath, orgName);
-            if (!fs.existsSync(orgPath)) fs.mkdirSync(orgPath);
+            createFolder(orgPath);
 
             fs.writeFileSync(path.join(orgPath, 'organization.json'), JSON.stringify(org, null, 2));
             log(`Arquivo JSON da Desktop salvo em: ${path.join(orgPath, 'organization.json')}`);
@@ -84,6 +94,7 @@ async function startMigrateTrelloSima() {
         log(`SCRIPT COMPLETO! Tempo total de execução: ${minutes} minutos e ${seconds} segundos`);
     } catch (error) {
         log('Ocorreu um erro ao buscar ou salvar as informações: ' + error.message);
+        throw error; // garante que o script pare
     }
 }
 
@@ -121,7 +132,7 @@ async function fetchAndSaveBoards(orgId, orgPath) {
         for (const board of boardsToProcess) {
             const boardName = sanitizeFileName(board.name);
             const boardPath = path.join(orgPath, boardName);
-            if (!fs.existsSync(boardPath)) fs.mkdirSync(boardPath, { recursive: true });
+            createFolder(boardPath);
 
             fs.writeFileSync(path.join(boardPath, 'board.json'), JSON.stringify(board, null, 2));
             log(`Arquivo JSON do quadro salvo em: ${path.join(boardPath, 'board.json')}`);
@@ -131,6 +142,7 @@ async function fetchAndSaveBoards(orgId, orgPath) {
 
     } catch (error) {
         log(`Erro ao buscar ou salvar quadros da Desktop ID: ${orgId}: ${error.message}`);
+        throw error; // interrompe o script
     }
 }
 
@@ -154,7 +166,7 @@ async function fetchAndSaveLists(boardId, boardPath) {
         for (const list of lists) {
             const listName = sanitizeFileName(list.name);
             const listPath = path.join(boardPath, listName);
-            if (!fs.existsSync(listPath)) fs.mkdirSync(listPath);
+            createFolder(listPath);
 
             fs.writeFileSync(path.join(listPath, 'list.json'), JSON.stringify(list, null, 2));
             log(`Arquivo JSON da lista salvo em: ${path.join(listPath, 'list.json')}`);
@@ -164,6 +176,7 @@ async function fetchAndSaveLists(boardId, boardPath) {
 
     } catch (error) {
         log(`Erro ao buscar ou salvar listas do quadro ID: ${boardId}: ${error.message}`);
+        throw error;
     }
 }
 
@@ -187,7 +200,7 @@ async function fetchAndSaveCards(listId, listPath) {
         for (const card of cards) {
             const cardName = sanitizeFileName(card.shortLink);
             const cardPath = path.join(listPath, cardName);
-            if (!fs.existsSync(cardPath)) fs.mkdirSync(cardPath);
+            createFolder(cardPath);
 
             fs.writeFileSync(path.join(cardPath, 'card.json'), JSON.stringify(card, null, 2));
             log(`Arquivo JSON do cartão salvo em: ${path.join(cardPath, 'card.json')}`);
@@ -197,6 +210,7 @@ async function fetchAndSaveCards(listId, listPath) {
 
     } catch (error) {
         log(`Erro ao buscar ou salvar cartões da lista ID: ${listId}: ${error.message}`);
+        throw error;
     }
 }
 
@@ -220,17 +234,22 @@ async function fetchAndSaveActions(cardId, cardPath) {
 
     } catch (error) {
         log(`Erro ao buscar ou salvar ações do cartão ID: ${cardId}: ${error.message}`);
+        throw error;
     }
 }
 
 // Função de execução
 async function startProcess() {
-    if (optionsFunctions.processExecuteSqlServer === true) {
-        log("\nExecutando insert no banco...");
-        executeSqlServerInsert();
-    } else {
-        log("\nChamando função para processar antes de inserir dados no banco...");
-        await startMigrateTrelloSima();
+    try {
+        if (optionsFunctions.processExecuteSqlServer === true) {
+            log("\nExecutando insert no banco...");
+            executeSqlServerInsert();
+        } else {
+            log("\nChamando função para processar antes de inserir dados no banco...");
+            await startMigrateTrelloSima();
+        }
+    } catch (error) {
+        console.error('Processo interrompido devido a erro:', error.message);
     }
 }
 
